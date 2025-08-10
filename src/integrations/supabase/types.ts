@@ -14,16 +14,367 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      casas: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          endereco: string | null
+          id: string
+          leader_id: string | null
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          endereco?: string | null
+          id?: string
+          leader_id?: string | null
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          endereco?: string | null
+          id?: string
+          leader_id?: string | null
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      encontros_1a1: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discipulador_id: string
+          discipulo_membro_id: string
+          duration_minutes: number | null
+          google_event_id: string | null
+          id: string
+          notes: string | null
+          outcome: string | null
+          scheduled_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discipulador_id: string
+          discipulo_membro_id: string
+          duration_minutes?: number | null
+          google_event_id?: string | null
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          scheduled_at: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          discipulador_id?: string
+          discipulo_membro_id?: string
+          duration_minutes?: number | null
+          google_event_id?: string | null
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          scheduled_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "encontros_1a1_discipulo_membro_id_fkey"
+            columns: ["discipulo_membro_id"]
+            isOneToOne: false
+            referencedRelation: "membros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_tokens: {
+        Row: {
+          access_token: string
+          expiry_date: string | null
+          refresh_token: string | null
+          scope: string | null
+          token_type: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          expiry_date?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          token_type?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          expiry_date?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          token_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      membros: {
+        Row: {
+          casa_id: string | null
+          created_at: string
+          created_by: string | null
+          discipulador_id: string | null
+          email: string | null
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          casa_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          discipulador_id?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          casa_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          discipulador_id?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membros_casa_id_fkey"
+            columns: ["casa_id"]
+            isOneToOne: false
+            referencedRelation: "casas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          related_id: string
+          remind_at: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"]
+          user_id: string
+        }
+        Insert: {
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          related_id: string
+          remind_at: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          user_id: string
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          related_id?: string
+          remind_at?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      planos_estudo: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      progresso: {
+        Row: {
+          created_at: string
+          id: string
+          membro_id: string
+          notes: string | null
+          plano_id: string
+          status: Database["public"]["Enums"]["progress_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          membro_id: string
+          notes?: string | null
+          plano_id: string
+          status?: Database["public"]["Enums"]["progress_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          membro_id?: string
+          notes?: string | null
+          plano_id?: string
+          status?: Database["public"]["Enums"]["progress_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progresso_membro_id_fkey"
+            columns: ["membro_id"]
+            isOneToOne: false
+            referencedRelation: "membros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progresso_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_estudo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reunioes_gerais: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          google_event_id: string | null
+          id: string
+          location: string | null
+          scheduled_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          google_event_id?: string | null
+          id?: string
+          location?: string | null
+          scheduled_at: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          google_event_id?: string | null
+          id?: string
+          location?: string | null
+          scheduled_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "pastor" | "discipulador" | "membro"
+      notification_channel: "none" | "telegram" | "whatsapp"
+      notification_status: "pending" | "sent" | "failed"
+      progress_status: "not_started" | "in_progress" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +501,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["pastor", "discipulador", "membro"],
+      notification_channel: ["none", "telegram", "whatsapp"],
+      notification_status: ["pending", "sent", "failed"],
+      progress_status: ["not_started", "in_progress", "completed"],
+    },
   },
 } as const
