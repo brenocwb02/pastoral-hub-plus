@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
+import { studyPlanSchema, type StudyPlanFormData } from "@/lib/validations";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface Plano { id: string; title: string; description: string | null }
 
@@ -13,8 +17,14 @@ export default function PlansPage() {
   const { toast } = useToast();
   const [items, setItems] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  
+  const form = useForm<StudyPlanFormData>({
+    resolver: zodResolver(studyPlanSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+    },
+  });
 
   useEffect(() => { setSEO("Planos de estudo | Cuidar+", "Gerencie planos de estudo"); }, []);
 
@@ -28,12 +38,16 @@ export default function PlansPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function create() {
+  async function onSubmit(data: StudyPlanFormData) {
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("planos_estudo").insert({ title, description: description || null, created_by: user?.id ?? null });
+    const { error } = await supabase.from("planos_estudo").insert({ 
+      title: data.title, 
+      description: data.description || null, 
+      created_by: user?.id ?? null 
+    });
     if (error) return toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-    setTitle(""); setDescription("");
-    toast({ title: "Plano criado" });
+    form.reset();
+    toast({ title: "Plano criado com sucesso" });
     load();
   }
 
@@ -46,10 +60,40 @@ export default function PlansPage() {
 
       <Card>
         <CardHeader><CardTitle>Novo plano</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-2 gap-3">
-          <Input placeholder="Título" value={title} onChange={(e)=>setTitle(e.target.value)} />
-          <Textarea placeholder="Descrição (opcional)" value={description} onChange={(e)=>setDescription(e.target.value)} className="sm:col-span-2" />
-          <Button onClick={create} disabled={!title}>Criar</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Fundamentos da Fé" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Descreva o conteúdo e objetivos do plano de estudo..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={!form.formState.isValid || form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Criando..." : "Criar"}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 

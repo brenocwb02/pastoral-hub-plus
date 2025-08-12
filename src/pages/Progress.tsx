@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
+import { progressSchema, type ProgressFormData } from "@/lib/validations";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Progresso { id: string; plano_id: string; membro_id: string; status: Database['public']['Enums']['progress_status']; notes: string | null }
 interface Membro { id: string; full_name: string }
@@ -20,10 +24,16 @@ export default function ProgressPage() {
   const [membros, setMembros] = useState<Membro[]>([]);
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(false);
-  const [membroId, setMembroId] = useState("");
-  const [planoId, setPlanoId] = useState("");
-  const [status, setStatus] = useState<ProgressStatus>("not_started");
-  const [notes, setNotes] = useState("");
+  
+  const form = useForm<ProgressFormData>({
+    resolver: zodResolver(progressSchema),
+    defaultValues: {
+      membro_id: "",
+      plano_id: "",
+      status: "not_started",
+      notes: "",
+    },
+  });
 
   useEffect(() => { setSEO("Progresso | Cuidar+", "Acompanhe progresso dos planos"); }, []);
 
@@ -47,17 +57,22 @@ export default function ProgressPage() {
     fetchRefs();
   }, []);
 
-  async function create() {
-    const payload: { membro_id: string; plano_id: string; status: ProgressStatus; notes: string | null } = {
-      membro_id: membroId,
-      plano_id: planoId,
-      status,
-      notes: notes || null,
+  async function onSubmit(data: ProgressFormData) {
+    const payload: { 
+      membro_id: string; 
+      plano_id: string; 
+      status: ProgressStatus; 
+      notes: string | null 
+    } = {
+      membro_id: data.membro_id,
+      plano_id: data.plano_id,
+      status: data.status as ProgressStatus,
+      notes: data.notes || null,
     };
     const { error } = await supabase.from("progresso").insert(payload as any);
     if (error) return toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-    setNotes("");
-    toast({ title: "Progresso criado" });
+    form.reset();
+    toast({ title: "Progresso criado com sucesso" });
     load();
   }
 
@@ -70,22 +85,95 @@ export default function ProgressPage() {
 
       <Card>
         <CardHeader><CardTitle>Novo progresso</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-3">
-          <select className="border rounded-md h-10 px-3 bg-background" value={membroId} onChange={(e)=>setMembroId(e.target.value)}>
-            <option value="">Selecione o membro</option>
-            {membros.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-          </select>
-          <select className="border rounded-md h-10 px-3 bg-background" value={planoId} onChange={(e)=>setPlanoId(e.target.value)}>
-            <option value="">Selecione o plano</option>
-            {planos.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-          </select>
-          <select className="border rounded-md h-10 px-3 bg-background" value={status} onChange={(e)=>setStatus(e.target.value as ProgressStatus)}>
-            <option value="not_started">Não iniciado</option>
-            <option value="in_progress">Em andamento</option>
-            <option value="completed">Concluído</option>
-          </select>
-          <Textarea className="sm:col-span-3" placeholder="Notas (opcional)" value={notes} onChange={(e)=>setNotes(e.target.value)} />
-          <Button onClick={create} disabled={!membroId || !planoId}>Criar</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid sm:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="membro_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Membro *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o membro" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {membros.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="plano_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Plano *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o plano" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {planos.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="not_started">Não iniciado</SelectItem>
+                          <SelectItem value="in_progress">Em andamento</SelectItem>
+                          <SelectItem value="completed">Concluído</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notas</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Observações sobre o progresso..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={!form.formState.isValid || form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Criando..." : "Criar"}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 

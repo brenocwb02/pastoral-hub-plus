@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
+import { houseSchema, type HouseFormData } from "@/lib/validations";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface Casa { id: string; nome: string; endereco: string | null }
 
@@ -12,8 +16,14 @@ export default function HousesPage() {
   const { toast } = useToast();
   const [items, setItems] = useState<Casa[]>([]);
   const [loading, setLoading] = useState(false);
-  const [nome, setNome] = useState("");
-  const [endereco, setEndereco] = useState("");
+  
+  const form = useForm<HouseFormData>({
+    resolver: zodResolver(houseSchema),
+    defaultValues: {
+      nome: "",
+      endereco: "",
+    },
+  });
 
   useEffect(() => { setSEO("Casas | Cuidar+", "Gerencie casas e líderes"); }, []);
 
@@ -27,12 +37,17 @@ export default function HousesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function create() {
+  async function onSubmit(data: HouseFormData) {
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("casas").insert({ nome, endereco: endereco || null, leader_id: user?.id ?? null, created_by: user?.id ?? null });
+    const { error } = await supabase.from("casas").insert({ 
+      nome: data.nome, 
+      endereco: data.endereco || null, 
+      leader_id: user?.id ?? null, 
+      created_by: user?.id ?? null 
+    });
     if (error) return toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-    setNome(""); setEndereco("");
-    toast({ title: "Casa criada" });
+    form.reset();
+    toast({ title: "Casa criada com sucesso" });
     load();
   }
 
@@ -45,10 +60,42 @@ export default function HousesPage() {
 
       <Card>
         <CardHeader><CardTitle>Nova casa</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-3">
-          <Input placeholder="Nome" value={nome} onChange={(e)=>setNome(e.target.value)} />
-          <Input placeholder="Endereço (opcional)" value={endereco} onChange={(e)=>setEndereco(e.target.value)} />
-          <Button onClick={create} disabled={!nome}>Criar</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid sm:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Casa da Paz Central" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endereco"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Endereço</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Rua das Flores, 123 - Centro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex items-end">
+                <Button type="submit" disabled={!form.formState.isValid || form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? "Criando..." : "Criar"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 

@@ -1,25 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
+import { memberSchema, type MemberFormData } from "@/lib/validations";
+import { formatPhone } from "@/lib/formatters";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
-interface Membro { id: string; full_name: string; email: string | null }
+interface Membro { id: string; full_name: string; email: string | null; phone: string | null }
 
 export default function MembersPage() {
   const { toast } = useToast();
   const [items, setItems] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  
+  const form = useForm<MemberFormData>({
+    resolver: zodResolver(memberSchema),
+    defaultValues: {
+      full_name: "",
+      email: "",
+      phone: "",
+    },
+  });
 
   useEffect(() => { setSEO("Membros | Cuidar+", "Gerencie membros da igreja"); }, []);
 
   const load = useMemo(() => async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("membros").select("id, full_name, email").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("membros").select("id, full_name, email, phone").order("created_at", { ascending: false });
     setLoading(false);
     if (error) return toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
     setItems(data || []);
@@ -27,12 +39,17 @@ export default function MembersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function create() {
+  async function onSubmit(data: MemberFormData) {
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase.from("membros").insert({ full_name: fullName, email: email || null, created_by: userData.user?.id ?? null });
+    const { error } = await supabase.from("membros").insert({ 
+      full_name: data.full_name, 
+      email: data.email || null,
+      phone: data.phone || null,
+      created_by: userData.user?.id ?? null 
+    });
     if (error) return toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-    setFullName(""); setEmail("");
-    toast({ title: "Membro criado" });
+    form.reset();
+    toast({ title: "Membro criado com sucesso" });
     load();
   }
 
@@ -45,10 +62,60 @@ export default function MembersPage() {
 
       <Card>
         <CardHeader><CardTitle>Novo membro</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-3">
-          <Input placeholder="Nome completo" value={fullName} onChange={(e)=>setFullName(e.target.value)} />
-          <Input placeholder="Email (opcional)" value={email} onChange={(e)=>setEmail(e.target.value)} />
-          <Button onClick={create} disabled={!fullName}>Criar</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <FormField
+                control={form.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome completo *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="João Silva" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="joao@exemplo.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefone</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="(11) 99999-9999" 
+                        {...field}
+                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        maxLength={15}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex items-end">
+                <Button type="submit" disabled={!form.formState.isValid || form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? "Criando..." : "Criar"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 
@@ -57,9 +124,14 @@ export default function MembersPage() {
         <CardContent>
           <ul className="space-y-2">
             {items.map(m => (
-              <li key={m.id} className="rounded-md border p-3 flex justify-between">
-                <span className="font-medium">{m.full_name}</span>
-                <span className="text-sm text-muted-foreground">{m.email}</span>
+              <li key={m.id} className="rounded-md border p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="font-medium">{m.full_name}</span>
+                    {m.email && <div className="text-sm text-muted-foreground">{m.email}</div>}
+                    {m.phone && <div className="text-sm text-muted-foreground">{m.phone}</div>}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
+import { oneOnOneSchema, type OneOnOneFormData } from "@/lib/validations";
+import { formatDateTimeLocal, formatDate } from "@/lib/formatters";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface OneOnOne { id: string; discipulo_membro_id: string; scheduled_at: string; duration_minutes: number | null; notes: string | null }
 interface Membro { id: string; full_name: string }
@@ -14,10 +21,16 @@ export default function OneOnOnesPage() {
   const [items, setItems] = useState<OneOnOne[]>([]);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(false);
-  const [membroId, setMembroId] = useState("");
-  const [when, setWhen] = useState<string>(new Date().toISOString().slice(0,16));
-  const [duration, setDuration] = useState<number>(60);
-  const [notes, setNotes] = useState("");
+  
+  const form = useForm<OneOnOneFormData>({
+    resolver: zodResolver(oneOnOneSchema),
+    defaultValues: {
+      discipulo_membro_id: "",
+      scheduled_at: formatDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)), // tomorrow
+      duration_minutes: 60,
+      notes: "",
+    },
+  });
 
   useEffect(() => { setSEO("Encontros 1 a 1 | Cuidar+", "Gerencie encontros 1 a 1"); }, []);
 
@@ -42,18 +55,33 @@ export default function OneOnOnesPage() {
     loadMembros();
   }, []);
 
-  async function create() {
+  async function onSubmit(data: OneOnOneFormData) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return toast({ title: "Não autenticado", variant: "destructive" });
-    // cria também no Google via edge function
-    const startISO = new Date(when).toISOString();
-    const endISO = new Date(new Date(when).getTime() + duration*60000).toISOString();
+    
+    const startISO = new Date(data.scheduled_at).toISOString();
+    const endISO = new Date(new Date(data.scheduled_at).getTime() + data.duration_minutes * 60000).toISOString();
+    
     const { error } = await supabase.functions.invoke("calendar-sync", {
-      body: { action: "create", type: "1a1", payload: { title: "Encontro 1 a 1", description: notes || null, start: startISO, end: endISO, extra: { discipulador_id: user.id, discipulo_membro_id: membroId } } }
+      body: { 
+        action: "create", 
+        type: "1a1", 
+        payload: { 
+          title: "Encontro 1 a 1", 
+          description: data.notes || null, 
+          start: startISO, 
+          end: endISO, 
+          extra: { 
+            discipulador_id: user.id, 
+            discipulo_membro_id: data.discipulo_membro_id 
+          } 
+        } 
+      }
     });
+    
     if (error) return toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-    setMembroId(""); setNotes("");
-    toast({ title: "Encontro criado" });
+    form.reset();
+    toast({ title: "Encontro criado com sucesso" });
     load();
   }
 
@@ -66,15 +94,85 @@ export default function OneOnOnesPage() {
 
       <Card>
         <CardHeader><CardTitle>Novo encontro</CardTitle></CardHeader>
-        <CardContent className="grid sm:grid-cols-4 gap-3">
-          <select className="border rounded-md h-10 px-3 bg-background" value={membroId} onChange={(e)=>setMembroId(e.target.value)}>
-            <option value="">Selecione o discípulo</option>
-            {membros.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-          </select>
-          <Input type="datetime-local" value={when} onChange={(e)=>setWhen(e.target.value)} />
-          <Input type="number" min={15} step={15} value={duration} onChange={(e)=>setDuration(parseInt(e.target.value||"60"))} />
-          <Input placeholder="Notas (opcional)" value={notes} onChange={(e)=>setNotes(e.target.value)} />
-          <Button onClick={create} disabled={!membroId}>Criar</Button>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <FormField
+                  control={form.control}
+                  name="discipulo_membro_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Discípulo *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o discípulo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {membros.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="scheduled_at"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data e hora *</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="duration_minutes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duração (min) *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          min={15} 
+                          step={15} 
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 60)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex items-end">
+                  <Button type="submit" disabled={!form.formState.isValid || form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? "Criando..." : "Criar"}
+                  </Button>
+                </div>
+              </div>
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notas</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Observações sobre o encontro..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
         </CardContent>
       </Card>
 
@@ -85,10 +183,10 @@ export default function OneOnOnesPage() {
             {items.map(i => (
               <li key={i.id} className="rounded-md border p-3">
                 <div className="flex justify-between">
-                  <span className="font-medium">{new Date(i.scheduled_at).toLocaleString()}</span>
+                  <span className="font-medium">{formatDate(i.scheduled_at)}</span>
                   <span className="text-sm text-muted-foreground">{i.duration_minutes ?? 60} min</span>
                 </div>
-                {i.notes && <p className="text-sm mt-1">{i.notes}</p>}
+                {i.notes && <p className="text-sm mt-1 text-muted-foreground">{i.notes}</p>}
               </li>
             ))}
           </ul>
