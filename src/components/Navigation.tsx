@@ -10,10 +10,23 @@ import {
   BookOpen, 
   TrendingUp,
   Menu,
-  X
+  X,
+  LogOut,
+  User as UserIcon
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const navigationItems = [
   { href: "/", label: "Início", icon: Home },
@@ -30,6 +43,43 @@ const navigationItems = [
 export function Navigation() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  // Estado para armazenar a sessão do usuário
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Efeito para verificar o estado de autenticação ao carregar o componente
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+
+    fetchUser();
+
+    // Ouve mudanças no estado de autenticação (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (_event === 'SIGNED_IN') {
+        setIsOpen(false); // Fecha o menu mobile ao logar
+      }
+    });
+
+    // Limpa a inscrição ao desmontar o componente
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Função para fazer logout
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    // O onAuthStateChange vai atualizar o estado do usuário para null
+  };
+  
+  // Extrai as iniciais do email para o Avatar
+  const getInitials = (email: string | undefined) => {
+    if (!email) return 'U';
+    return email.substring(0, 2).toUpperCase();
+  }
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -67,11 +117,41 @@ export function Navigation() {
           })}
         </div>
 
-        {/* Auth Button */}
+        {/* Botão de Autenticação ou Menu do Usuário (Desktop) */}
         <div className="hidden md:flex items-center space-x-2">
-          <Button asChild variant="outline">
-            <Link to="/auth">Entrar</Link>
-          </Button>
+          {loading ? (
+            <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
+          ) : user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} alt="Avatar" />
+                    <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Minha Conta</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button asChild variant="outline">
+              <Link to="/auth">Entrar</Link>
+            </Button>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -99,7 +179,7 @@ export function Navigation() {
                   to={item.href}
                   onClick={() => setIsOpen(false)}
                   className={cn(
-                    "flex items-center space-x-3 px-3 py-3 rounded-md text-sm font-medium transition-colors w-full",
+                    "flex items-center space-x-3 px-3 py-3 rounded-md text-base font-medium transition-colors w-full",
                     isActive
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -112,9 +192,16 @@ export function Navigation() {
             })}
             
             <div className="pt-4 border-t">
-              <Button asChild variant="outline" className="w-full">
-                <Link to="/auth" onClick={() => setIsOpen(false)}>Entrar</Link>
-              </Button>
+              {user ? (
+                 <Button onClick={() => { handleSignOut(); setIsOpen(false); }} variant="outline" className="w-full">
+                   <LogOut className="mr-2 h-4 w-4" />
+                   Sair ({user.email?.split('@')[0]})
+                 </Button>
+              ) : (
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/auth" onClick={() => setIsOpen(false)}>Entrar</Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
