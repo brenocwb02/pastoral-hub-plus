@@ -74,17 +74,18 @@ export default function MembersPage() {
   useEffect(() => {
     const fetchAuxData = async () => {
       // Busca usuários que são pastores ou discipuladores
+      // Corrigido: a tabela de junção é 'profiles', não 'users'
       const { data: usersWithRoles, error: rolesError } = await supabase
         .from('user_roles')
-        .select('user_id, users(id, full_name)')
+        .select('user_id, profiles(id, full_name)')
         .in('role', ['pastor', 'discipulador']);
 
       if (rolesError) {
         toast({ title: "Erro ao carregar discipuladores", description: rolesError.message, variant: "destructive" });
       } else {
         const fetchedDiscipuladores = usersWithRoles
-          .map(item => item.users)
-          .filter(user => user !== null) as Discipulador[];
+          .map(item => item.profiles) // Usar 'profiles' em vez de 'users'
+          .filter(user => user !== null && user.full_name) as Discipulador[];
         setDiscipuladores(fetchedDiscipuladores);
       }
       
@@ -105,11 +106,13 @@ export default function MembersPage() {
   const handleDialogOpen = (member: Membro | null = null) => {
     setEditingMember(member);
     if (member) {
+      // CORREÇÃO: Garante que o discipulador_id seja uma string vazia se for nulo
       form.reset({
         ...member,
         data_nascimento: member.data_nascimento ? member.data_nascimento.split('T')[0] : "",
         data_batismo: member.data_batismo ? member.data_batismo.split('T')[0] : "",
         casa_id: member.casa_id || "",
+        discipulador_id: member.discipulador_id || "", // Correção aqui
       });
     } else {
       form.reset({
@@ -124,8 +127,11 @@ export default function MembersPage() {
   async function onSubmit(data: MemberFormData) {
     const { data: { user } } = await supabase.auth.getUser();
     
+    // Remove a chave 'casas' que vem do join e não deve ser enviada no payload
+    const { casas, ...restOfData } = data as any;
+
     const payload = {
-      ...data,
+      ...restOfData,
       phone: data.phone || null,
       email: data.email || null,
       endereco: data.endereco || null,
@@ -223,7 +229,7 @@ export default function MembersPage() {
                 <FormField control={form.control} name="estado_civil" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estado Civil</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
@@ -245,7 +251,7 @@ export default function MembersPage() {
                 <FormField control={form.control} name="discipulador_id" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discipulador *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Selecione o discipulador" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {discipuladores.map(d => (<SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>))}
@@ -257,7 +263,7 @@ export default function MembersPage() {
                 <FormField control={form.control} name="casa_id" render={({ field }) => (
                   <FormItem className="sm:col-span-2">
                     <FormLabel>Casa de Paz</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Selecione a casa de paz" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {casas.map(c => (<SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>))}
