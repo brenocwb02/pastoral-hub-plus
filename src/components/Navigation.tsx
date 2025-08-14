@@ -38,6 +38,7 @@ const navigationItems = [
   { href: "/plans", label: "Planos", icon: BookOpen },
   { href: "/progress", label: "Progresso", icon: TrendingUp },
   { href: "/calendar", label: "Calendário", icon: Calendar },
+  { href: "/admin/roles", label: "Papéis", icon: UserIcon },
 ];
 
 export function Navigation() {

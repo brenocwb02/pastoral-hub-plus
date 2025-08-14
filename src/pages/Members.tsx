@@ -5,11 +5,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
 import { memberSchema, type MemberFormData } from "@/lib/validations";
 import { formatPhone } from "@/lib/formatters";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Edit, Trash2, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Membro { id: string; full_name: string; email: string | null; phone: string | null }
 
@@ -17,8 +36,19 @@ export default function MembersPage() {
   const { toast } = useToast();
   const [items, setItems] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingItem, setEditingItem] = useState<Membro | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   const form = useForm<MemberFormData>({
+    resolver: zodResolver(memberSchema),
+    defaultValues: {
+      full_name: "",
+      email: "",
+      phone: "",
+    },
+  });
+
+  const editForm = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
       full_name: "",
@@ -51,6 +81,44 @@ export default function MembersPage() {
     form.reset();
     toast({ title: "Membro criado com sucesso" });
     load();
+  }
+
+  async function onEdit(data: MemberFormData) {
+    if (!editingItem) return;
+    
+    const { error } = await supabase
+      .from("membros")
+      .update({ 
+        full_name: data.full_name, 
+        email: data.email || null, 
+        phone: data.phone || null 
+      })
+      .eq("id", editingItem.id);
+      
+    if (error) return toast({ title: "Erro ao editar", description: error.message, variant: "destructive" });
+    
+    setEditDialogOpen(false);
+    setEditingItem(null);
+    editForm.reset();
+    toast({ title: "Membro editado com sucesso" });
+    load();
+  }
+
+  async function onDelete(id: string) {
+    const { error } = await supabase.from("membros").delete().eq("id", id);
+    if (error) return toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    toast({ title: "Membro excluído com sucesso" });
+    load();
+  }
+
+  function startEdit(item: Membro) {
+    setEditingItem(item);
+    editForm.reset({
+      full_name: item.full_name,
+      email: item.email || "",
+      phone: item.phone || "",
+    });
+    setEditDialogOpen(true);
   }
 
   return (
@@ -122,21 +190,141 @@ export default function MembersPage() {
       <Card>
         <CardHeader><CardTitle>Membros ({items.length}) {loading ? "carregando..." : ""}</CardTitle></CardHeader>
         <CardContent>
-          <ul className="space-y-2">
-            {items.map(m => (
-              <li key={m.id} className="rounded-md border p-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="font-medium">{m.full_name}</span>
-                    {m.email && <div className="text-sm text-muted-foreground">{m.email}</div>}
-                    {m.phone && <div className="text-sm text-muted-foreground">{m.phone}</div>}
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {items.map(m => (
+                <li key={m.id} className="rounded-md border p-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-medium">{m.full_name}</span>
+                      {m.email && <div className="text-sm text-muted-foreground">{m.email}</div>}
+                      {m.phone && <div className="text-sm text-muted-foreground">{m.phone}</div>}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startEdit(m)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir o membro "{m.full_name}"? 
+                              Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => onDelete(m.id)}
+                              className="bg-destructive text-destructive-foreground"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Membro</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome completo *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="João Silva" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>E-mail</FormLabel>
+                    <FormControl>
+                      <Input placeholder="joao@exemplo.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefone</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="(11) 99999-9999" 
+                        {...field}
+                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2">
+                <Button 
+                  type="submit" 
+                  disabled={!editForm.formState.isValid || editForm.formState.isSubmitting}
+                >
+                  {editForm.formState.isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    "Salvar"
+                  )}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setEditDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

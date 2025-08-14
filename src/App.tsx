@@ -15,6 +15,7 @@ import OneOnOnesPage from "./pages/OneOnOnes";
 import MeetingsPage from "./pages/Meetings";
 import PlansPage from "./pages/Plans";
 import ProgressPage from "./pages/Progress";
+import AdminRolesPage from "./pages/AdminRoles";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/plans" element={<PlansPage />} />
           <Route path="/progress" element={<ProgressPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/admin/roles" element={<AdminRolesPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

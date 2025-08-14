@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Users, 
   Building2, 
@@ -12,9 +13,13 @@ import {
   TrendingUp,
   Plus,
   ArrowRight,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
 import { setSEO } from "@/lib/seo";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDate } from "@/lib/formatters";
+import { useToast } from "@/hooks/use-toast";
 
 interface Stats {
   totalMembers: number;
@@ -39,26 +44,153 @@ interface Event {
 }
 
 export default function Dashboard() {
+  const { toast } = useToast();
   const [stats, setStats] = useState<Stats>({
-    totalMembers: 45,
-    totalHouses: 8,
-    totalOneOnOnes: 12,
-    totalMeetings: 5,
-    recentActivities: [
-      { id: "1", description: "Novo membro cadastrado: João Silva", timestamp: "2 horas atrás" },
-      { id: "2", description: "Encontro 1 a 1 agendado com Maria", timestamp: "5 horas atrás" },
-      { id: "3", description: "Nova casa de paz criada: Casa Central", timestamp: "1 dia atrás" },
-    ],
-    upcomingEvents: [
-      { id: "1", title: "Reunião Geral", date: "Hoje", time: "19:00" },
-      { id: "2", title: "Encontro com Pedro", date: "Amanhã", time: "15:00" },
-      { id: "3", title: "Reunião de Líderes", date: "Sexta", time: "20:00" },
-    ]
+    totalMembers: 0,
+    totalHouses: 0,
+    totalOneOnOnes: 0,
+    totalMeetings: 0,
+    recentActivities: [],
+    upcomingEvents: []
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setSEO("Dashboard - Cuidar+", "Painel principal com métricas e estatísticas do ministério");
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Get totals for each table
+      const [membersResult, housesResult, oneOnOnesResult, meetingsResult] = await Promise.all([
+        supabase.from("membros").select("id", { count: "exact", head: true }),
+        supabase.from("casas").select("id", { count: "exact", head: true }),
+        supabase.from("encontros_1a1").select("id", { count: "exact", head: true }),
+        supabase.from("reunioes_gerais").select("id", { count: "exact", head: true })
+      ]);
+
+      // Get upcoming events (next 3)
+      const { data: upcomingMeetings } = await supabase
+        .from("reunioes_gerais")
+        .select("id, title, scheduled_at")
+        .gte("scheduled_at", new Date().toISOString())
+        .order("scheduled_at", { ascending: true })
+        .limit(2);
+
+      const { data: upcomingOneOnOnes } = await supabase
+        .from("encontros_1a1")
+        .select("id, scheduled_at, membros(full_name)")
+        .gte("scheduled_at", new Date().toISOString())
+        .order("scheduled_at", { ascending: true })
+        .limit(1);
+
+      // Get recent activities (simulated from recent records)
+      const { data: recentMembers } = await supabase
+        .from("membros")
+        .select("full_name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(2);
+
+      const { data: recentHouses } = await supabase
+        .from("casas")
+        .select("nome, created_at")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      // Format upcoming events
+      const upcomingEvents: Event[] = [];
+      
+      if (upcomingMeetings) {
+        upcomingMeetings.forEach(meeting => {
+          const date = new Date(meeting.scheduled_at);
+          upcomingEvents.push({
+            id: meeting.id,
+            title: meeting.title,
+            date: formatDate(date).split(' ')[0],
+            time: formatDate(date).split(' ')[1]
+          });
+        });
+      }
+
+      if (upcomingOneOnOnes) {
+        upcomingOneOnOnes.forEach(oneOnOne => {
+          const date = new Date(oneOnOne.scheduled_at);
+          upcomingEvents.push({
+            id: oneOnOne.id,
+            title: `1 a 1 com ${oneOnOne.membros?.full_name || 'N/A'}`,
+            date: formatDate(date).split(' ')[0],
+            time: formatDate(date).split(' ')[1]
+          });
+        });
+      }
+
+      // Format recent activities
+      const recentActivities: Activity[] = [];
+      
+      if (recentMembers) {
+        recentMembers.forEach(member => {
+          const timeAgo = getTimeAgo(new Date(member.created_at));
+          recentActivities.push({
+            id: `member-${member.full_name}`,
+            description: `Novo membro cadastrado: ${member.full_name}`,
+            timestamp: timeAgo
+          });
+        });
+      }
+
+      if (recentHouses) {
+        recentHouses.forEach(house => {
+          const timeAgo = getTimeAgo(new Date(house.created_at));
+          recentActivities.push({
+            id: `house-${house.nome}`,
+            description: `Nova casa criada: ${house.nome}`,
+            timestamp: timeAgo
+          });
+        });
+      }
+
+      // Sort activities by most recent
+      recentActivities.sort((a, b) => {
+        // Simple sorting by timestamp text - in real app would use actual dates
+        return a.timestamp.localeCompare(b.timestamp);
+      });
+
+      setStats({
+        totalMembers: membersResult.count || 0,
+        totalHouses: housesResult.count || 0,
+        totalOneOnOnes: oneOnOnesResult.count || 0,
+        totalMeetings: meetingsResult.count || 0,
+        recentActivities: recentActivities.slice(0, 3),
+        upcomingEvents: upcomingEvents.slice(0, 3)
+      });
+
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      toast({
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar os dados do dashboard",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return "Agora";
+    if (diffInHours === 1) return "1 hora atrás";
+    if (diffInHours < 24) return `${diffInHours} horas atrás`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return "1 dia atrás";
+    return `${diffInDays} dias atrás`;
+  };
 
   const quickActions = [
     { icon: Users, label: "Novo Membro", href: "/members", color: "bg-blue-500" },
@@ -95,7 +227,11 @@ export default function Dashboard() {
                   <Users className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold">{stats.totalMembers}</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mb-2" />
+                  ) : (
+                    <p className="text-3xl font-bold">{stats.totalMembers}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Total de Membros</p>
                 </div>
               </div>
@@ -109,7 +245,11 @@ export default function Dashboard() {
                   <Building2 className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold">{stats.totalHouses}</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mb-2" />
+                  ) : (
+                    <p className="text-3xl font-bold">{stats.totalHouses}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Casas de Paz</p>
                 </div>
               </div>
@@ -123,7 +263,11 @@ export default function Dashboard() {
                   <MessageCircle className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold">{stats.totalOneOnOnes}</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mb-2" />
+                  ) : (
+                    <p className="text-3xl font-bold">{stats.totalOneOnOnes}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Encontros 1 a 1</p>
                 </div>
               </div>
@@ -137,7 +281,11 @@ export default function Dashboard() {
                   <Calendar className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold">{stats.totalMeetings}</p>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16 mb-2" />
+                  ) : (
+                    <p className="text-3xl font-bold">{stats.totalMeetings}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Reuniões Gerais</p>
                 </div>
               </div>
@@ -180,15 +328,27 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats.recentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-muted/30">
-                    <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>
-                    <div className="flex-1">
-                      <p className="text-sm">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground">{activity.timestamp}</p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                  </>
+                ) : stats.recentActivities.length > 0 ? (
+                  stats.recentActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-muted/30">
+                      <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <p className="text-sm">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground">{activity.timestamp}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhuma atividade recente
+                  </p>
+                )}
               </div>
               <Button variant="ghost" className="w-full mt-4" asChild>
                 <Link to="/dashboard">
@@ -210,15 +370,27 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats.upcomingEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div>
-                      <p className="text-sm font-medium">{event.title}</p>
-                      <p className="text-xs text-muted-foreground">{event.date}</p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                  </>
+                ) : stats.upcomingEvents.length > 0 ? (
+                  stats.upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div>
+                        <p className="text-sm font-medium">{event.title}</p>
+                        <p className="text-xs text-muted-foreground">{event.date}</p>
+                      </div>
+                      <Badge variant="default">{event.time}</Badge>
                     </div>
-                    <Badge variant="default">{event.time}</Badge>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum evento próximo
+                  </p>
+                )}
               </div>
               <Button variant="ghost" className="w-full mt-4" asChild>
                 <Link to="/calendar">
