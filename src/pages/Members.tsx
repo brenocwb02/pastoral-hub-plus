@@ -28,11 +28,9 @@ interface Membro {
   discipulador_id: string | null;
   casa_id: string | null;
   casas: { nome: string } | null;
-  // Para buscar o nome do discipulador, precisamos de um join mais complexo
-  // Por simplicidade, vamos buscar a lista de discipuladores separadamente
 }
 
-interface Discipulador { id: string; full_name: string; }
+interface Discipulador { id: string; full_name: string | null; }
 interface Casa { id: string; nome: string; }
 
 export default function MembersPage() {
@@ -73,20 +71,34 @@ export default function MembersPage() {
   // Carrega dados auxiliares (discipuladores e casas)
   useEffect(() => {
     const fetchAuxData = async () => {
-      // Busca usuários que são pastores ou discipuladores
-      // Corrigido: a tabela de junção é 'profiles', não 'users'
-      const { data: usersWithRoles, error: rolesError } = await supabase
+      // CORREÇÃO: Lógica de busca de discipuladores em duas etapas para evitar erro de relação
+      // Etapa 1: Buscar IDs de usuários com os papéis corretos
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
-        .select('user_id, profiles(id, full_name)')
+        .select('user_id')
         .in('role', ['pastor', 'discipulador']);
 
       if (rolesError) {
-        toast({ title: "Erro ao carregar discipuladores", description: rolesError.message, variant: "destructive" });
+        toast({ title: "Erro ao carregar papéis", description: rolesError.message, variant: "destructive" });
+        return;
+      }
+
+      const userIds = rolesData.map(r => r.user_id);
+
+      if (userIds.length > 0) {
+        // Etapa 2: Buscar os perfis (nomes) correspondentes a esses IDs
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+
+        if (profilesError) {
+          toast({ title: "Erro ao carregar discipuladores", description: profilesError.message, variant: "destructive" });
+        } else {
+          setDiscipuladores(profilesData as Discipulador[]);
+        }
       } else {
-        const fetchedDiscipuladores = usersWithRoles
-          .map(item => item.profiles) // Usar 'profiles' em vez de 'users'
-          .filter(user => user !== null && user.full_name) as Discipulador[];
-        setDiscipuladores(fetchedDiscipuladores);
+        setDiscipuladores([]);
       }
       
       const { data: casasData, error: casasError } = await supabase.from("casas").select("id, nome");
@@ -106,13 +118,12 @@ export default function MembersPage() {
   const handleDialogOpen = (member: Membro | null = null) => {
     setEditingMember(member);
     if (member) {
-      // CORREÇÃO: Garante que o discipulador_id seja uma string vazia se for nulo
       form.reset({
         ...member,
         data_nascimento: member.data_nascimento ? member.data_nascimento.split('T')[0] : "",
         data_batismo: member.data_batismo ? member.data_batismo.split('T')[0] : "",
         casa_id: member.casa_id || "",
-        discipulador_id: member.discipulador_id || "", // Correção aqui
+        discipulador_id: member.discipulador_id || "",
       });
     } else {
       form.reset({
@@ -127,7 +138,6 @@ export default function MembersPage() {
   async function onSubmit(data: MemberFormData) {
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Remove a chave 'casas' que vem do join e não deve ser enviada no payload
     const { casas, ...restOfData } = data as any;
 
     const payload = {
@@ -139,7 +149,7 @@ export default function MembersPage() {
       estado_civil: data.estado_civil || null,
       data_batismo: data.data_batismo || null,
       casa_id: data.casa_id || null,
-      created_by: editingMember ? undefined : user?.id, // Apenas no insert
+      created_by: editingMember ? undefined : user?.id,
       updated_at: new Date().toISOString(),
     };
 
