@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-// Member validation schema
+// Esquema de Membro Detalhado
 export const memberSchema = z.object({
   full_name: z.string()
     .min(2, "Nome deve ter pelo menos 2 caracteres")
     .max(100, "Nome deve ter no máximo 100 caracteres")
-    .regex(/^[a-zA-ZÀ-ÿ\s]+$/, "Nome deve conter apenas letras e espaços"),
+    .regex(/^[a-zA-ZÀ-ÿ\s']+$/, "Nome deve conter apenas letras e espaços"),
   email: z.string()
     .email("Email inválido")
     .optional()
@@ -14,6 +14,12 @@ export const memberSchema = z.object({
     .regex(/^\(\d{2}\)\s\d{4,5}-\d{4}$/, "Formato: (11) 99999-9999")
     .optional()
     .or(z.literal("")),
+  endereco: z.string().max(200, "Endereço muito longo").optional().or(z.literal("")),
+  data_nascimento: z.string().optional().or(z.literal("")), // A validação de data será feita no input type="date"
+  estado_civil: z.string().optional().or(z.literal("")),
+  data_batismo: z.string().optional().or(z.literal("")),
+  discipulador_id: z.string().uuid("Selecione um discipulador válido"),
+  casa_id: z.string().uuid("Selecione uma casa de paz válida").optional().or(z.literal("")),
 });
 
 // House validation schema
@@ -45,8 +51,9 @@ export const meetingSchema = z.object({
     .refine((date) => {
       const now = new Date();
       const inputDate = new Date(date);
-      return inputDate > now;
-    }, "Data deve ser no futuro"),
+      // Remove a validação de data no futuro para permitir edição de eventos passados
+      return !isNaN(inputDate.getTime());
+    }, "Data inválida"),
 });
 
 // One-on-One validation schema
@@ -57,8 +64,8 @@ export const oneOnOneSchema = z.object({
     .refine((date) => {
       const now = new Date();
       const inputDate = new Date(date);
-      return inputDate > now;
-    }, "Data deve ser no futuro"),
+      return !isNaN(inputDate.getTime());
+    }, "Data inválida"),
   duration_minutes: z.number()
     .min(15, "Duração mínima: 15 minutos")
     .max(480, "Duração máxima: 8 horas"),
