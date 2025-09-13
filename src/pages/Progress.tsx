@@ -12,7 +12,15 @@ import { progressSchema, type ProgressFormData } from "@/lib/validations";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-interface Progresso { id: string; plano_id: string; membro_id: string; status: Database['public']['Enums']['progress_status']; notes: string | null }
+interface Progresso { 
+  id: string; 
+  plano_id: string; 
+  membro_id: string; 
+  status: Database['public']['Enums']['progress_status']; 
+  notes: string | null;
+  membros?: { id: string; full_name: string } | null;
+  planos_estudo?: { id: string; title: string } | null;
+}
 interface Membro { id: string; full_name: string }
 interface Plano { id: string; title: string }
 
@@ -39,7 +47,14 @@ export default function ProgressPage() {
 
   const load = useMemo(() => async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("progresso").select("id, plano_id, membro_id, status, notes").order("updated_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("progresso")
+      .select(`
+        id, plano_id, membro_id, status, notes,
+        membros!membro_id(id, full_name),
+        planos_estudo!plano_id(id, title)
+      `)
+      .order("updated_at", { ascending: false });
     setLoading(false);
     if (error) return toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
     setItems((data as any) || []);
@@ -184,10 +199,10 @@ export default function ProgressPage() {
             {items.map(i => (
               <li key={i.id} className="rounded-md border p-3">
                 <div className="flex justify-between">
-                  <span className="font-medium">Plano {i.plano_id}</span>
-                  <span className="text-sm text-muted-foreground">Membro {i.membro_id}</span>
+                  <span className="font-medium">{i.planos_estudo?.title || `Plano ${i.plano_id}`}</span>
+                  <span className="text-sm text-muted-foreground">{i.membros?.full_name || `Membro ${i.membro_id}`}</span>
                 </div>
-                <div className="text-sm">Status: {i.status}</div>
+                <div className="text-sm">Status: {i.status === 'not_started' ? 'Não iniciado' : i.status === 'in_progress' ? 'Em andamento' : 'Concluído'}</div>
                 {i.notes && <p className="text-sm mt-1">{i.notes}</p>}
               </li>
             ))}

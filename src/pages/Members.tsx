@@ -27,6 +27,10 @@ interface Membro {
   data_batismo: string | null;
   discipulador_id: string | null;
   casa_id: string | null;
+  user_id: string | null;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
   casas: { nome: string } | null;
 }
 
