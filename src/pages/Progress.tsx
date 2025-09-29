@@ -1,308 +1,608 @@
-import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { setSEO } from "@/lib/seo";
-import { progressSchema, type ProgressFormData } from "@/lib/validations";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from 'react'
+import { supabase } from '@/integrations/supabase/client'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/hooks/use-toast'
+import { Database } from '@/integrations/supabase/types'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
-interface Progresso { 
-  id: string; 
-  plano_id: string; 
-  membro_id: string; 
-  status: Database['public']['Enums']['progress_status']; 
-  notes: string | null;
-  membros?: { id: string; full_name: string } | null;
-  planos_estudo?: { id: string; title: string } | null;
+// Tipos
+type Progress = Database['public']['Tables']['progress']['Row']
+type Member = Database['public']['Tables']['members']['Row']
+type Plan = Database['public']['Tables']['plans']['Row']
+
+type ProgressWithNames = Progress & {
+  members: { full_name: string } | null
+  plans: { name: string } | null
 }
-interface Membro { id: string; full_name: string }
-interface Plano { id: string; title: string }
 
-type ProgressStatus = Database['public']['Enums']['progress_status'];
+const progressSchema = z.object({
+  member_id: z.string().uuid({ message: 'Selecione um discípulo.' }),
+  plan_id: z.string().uuid({ message: 'Selecione um plano de ação.' }),
+  status: z.enum(['Não iniciado', 'Em progresso', 'Concluído']),
+  notes: z.string().optional(),
+})
 
-export default function ProgressPage() {
-  const { toast } = useToast();
-  const [items, setItems] = useState<Progresso[]>([]);
-  const [membros, setMembros] = useState<Membro[]>([]);
-  const [planos, setPlanos] = useState<Plano[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isDialogOpen, setDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Progresso | null>(null);
-  
-  const form = useForm<ProgressFormData>({
+export function Progress() {
+  const { toast } = useToast()
+  const [progress, setProgress] = useState<ProgressWithNames[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Estados para controlar os diálogos e o item selecionado
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [selectedProgress, setSelectedProgress] =
+    useState<ProgressWithNames | null>(null)
+
+  const form = useForm<z.infer<typeof progressSchema>>({
     resolver: zodResolver(progressSchema),
     defaultValues: {
-      membro_id: "",
-      plano_id: "",
-      status: "not_started",
-      notes: "",
+      member_id: '',
+      plan_id: '',
+      status: 'Não iniciado',
+      notes: '',
     },
-  });
+  })
 
-  useEffect(() => { setSEO("Progresso | Cuidar+", "Acompanhe progresso dos planos"); }, []);
+  async function fetchData() {
+    setIsLoading(true)
+    const { data: progressData, error: progressError } = await supabase
+      .from('progress')
+      .select('*, members(full_name), plans(name)')
+      .order('created_at', { ascending: false })
 
-  const load = useMemo(() => async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("progresso")
-      .select(`
-        id, plano_id, membro_id, status, notes,
-        membros!membro_id(id, full_name),
-        planos_estudo!plano_id(id, title)
-      `)
-      .order("updated_at", { ascending: false });
-    setLoading(false);
-    if (error) return toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
-    setItems((data as any) || []);
-  }, [toast]);
+    const { data: membersData, error: membersError } = await supabase
+      .from('members')
+      .select('*')
+    const { data: plansData, error: plansError } = await supabase
+      .from('plans')
+      .select('*')
 
-  useEffect(() => { load(); }, [load]);
+    if (progressError || membersError || plansError) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao buscar dados',
+        description:
+          progressError?.message ||
+          membersError?.message ||
+          plansError?.message,
+      })
+    } else {
+      setProgress(progressData as ProgressWithNames[])
+      setMembers(membersData)
+      setPlans(plansData)
+    }
+    setIsLoading(false)
+  }
 
   useEffect(() => {
-    async function fetchRefs() {
-      const { data: m } = await supabase.from("membros").select("id, full_name").order("full_name");
-      const { data: p } = await supabase.from("planos_estudo").select("id, title").order("title");
-      setMembros(m || []);
-      setPlanos(p || []);
-    }
-    fetchRefs();
-  }, []);
+    fetchData()
+  }, [])
 
-  const handleDialogOpen = (item: Progresso | null = null) => {
-    setEditingItem(item);
-    if (item) {
+  // Efeito para preencher o formulário de edição quando um item é selecionado
+  useEffect(() => {
+    if (selectedProgress) {
       form.reset({
-        membro_id: item.membro_id,
-        plano_id: item.plano_id,
-        status: item.status,
-        notes: item.notes || "",
-      });
-    } else {
-      form.reset({
-        membro_id: "",
-        plano_id: "",
-        status: "not_started",
-        notes: "",
-      });
+        member_id: selectedProgress.member_id,
+        plan_id: selectedProgress.plan_id,
+        status: selectedProgress.status,
+        notes: selectedProgress.notes || '',
+      })
     }
-    setDialogOpen(true);
-  };
+  }, [selectedProgress, form])
 
-  async function onSubmit(data: ProgressFormData) {
-    const payload: { 
-      membro_id: string; 
-      plano_id: string; 
-      status: ProgressStatus; 
-      notes: string | null;
-      updated_at?: string;
-    } = {
-      membro_id: data.membro_id,
-      plano_id: data.plano_id,
-      status: data.status as ProgressStatus,
-      notes: data.notes || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    let error;
-    if (editingItem) {
-      ({ error } = await supabase.from("progresso").update(payload).eq("id", editingItem.id));
+  async function onSubmit(values: z.infer<typeof progressSchema>) {
+    setIsSubmitting(true)
+    const { error } = await supabase.from('progress').insert([values])
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao registar progresso',
+        description: error.message,
+      })
     } else {
-      ({ error } = await supabase.from("progresso").insert(payload as any));
+      toast({
+        title: 'Sucesso!',
+        description: 'Progresso registado com sucesso.',
+      })
+      form.reset()
+      fetchData() // Recarrega os dados para mostrar o novo registo
     }
+    setIsSubmitting(false)
+  }
+
+  // Função para submeter a edição
+  async function onEditSubmit(values: z.infer<typeof progressSchema>) {
+    if (!selectedProgress) return
+
+    setIsSubmitting(true)
+    const { error } = await supabase
+      .from('progress')
+      .update(values)
+      .eq('id', selectedProgress.id)
+
+    setIsSubmitting(false)
 
     if (error) {
-      toast({ title: `Erro ao ${editingItem ? 'atualizar' : 'criar'}`, description: error.message, variant: "destructive" });
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar progresso',
+        description: error.message,
+      })
     } else {
-      toast({ title: `Progresso ${editingItem ? 'atualizado' : 'criado'} com sucesso` });
-      setDialogOpen(false);
-      form.reset();
-      load();
+      toast({
+        title: 'Sucesso!',
+        description: 'Progresso atualizado com sucesso.',
+      })
+      setIsEditDialogOpen(false)
+      setSelectedProgress(null)
+      fetchData() // Recarrega os dados
     }
   }
 
-  async function handleDelete(itemId: string) {
-    const { error } = await supabase.from("progresso").delete().eq("id", itemId);
+  // Função para apagar
+  async function handleDelete() {
+    if (!selectedProgress) return
+
+    setIsSubmitting(true)
+    const { error } = await supabase
+      .from('progress')
+      .delete()
+      .eq('id', selectedProgress.id)
+
+    setIsSubmitting(false)
+
     if (error) {
-      toast({ title: "Erro ao excluir progresso", description: error.message, variant: "destructive" });
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir progresso',
+        description: error.message,
+      })
     } else {
-      toast({ title: "Progresso excluído com sucesso" });
-      load();
+      toast({
+        title: 'Sucesso!',
+        description: 'Progresso excluído com sucesso.',
+      })
+      setIsDeleteDialogOpen(false)
+      setSelectedProgress(null)
+      fetchData() // Recarrega os dados
     }
   }
 
   return (
-    <main className="container mx-auto p-4 space-y-4">
-      <header className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold">Progresso</h1>
-          <p className="text-muted-foreground">Criação e listagem conforme permissões.</p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen(null)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Novo Progresso
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>{editingItem ? "Editar Progresso" : "Novo Progresso"}</DialogTitle>
-              <DialogDescription>
-                Preencha os detalhes abaixo. Campos com * são obrigatórios.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="membro_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Membro *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o membro" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {membros.map(m => (
-                              <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="plano_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Plano *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o plano" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {planos.map(p => (
-                              <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="not_started">Não iniciado</SelectItem>
-                          <SelectItem value="in_progress">Em andamento</SelectItem>
-                          <SelectItem value="completed">Concluído</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notas</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Observações sobre o progresso..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Salvar
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </header>
+    <div className="space-y-4">
+      <h1 className="text-3xl font-bold">Acompanhamento de Progresso</h1>
 
       <Card>
-        <CardHeader><CardTitle>Registros ({items.length})</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Registar Novo Progresso</CardTitle>
+        </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {items.map(item => (
-                <div key={item.id} className="rounded-md border p-3 flex justify-between items-center">
-                  <div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{item.planos_estudo?.title || `Plano ${item.plano_id}`}</span>
-                      <span className="text-sm text-muted-foreground">{item.membros?.full_name || `Membro ${item.membro_id}`}</span>
-                    </div>
-                    <div className="text-sm">Status: {item.status === 'not_started' ? 'Não iniciado' : item.status === 'in_progress' ? 'Em andamento' : 'Concluído'}</div>
-                    {item.notes && <p className="text-sm mt-1">{item.notes}</p>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(item)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Isso excluirá permanentemente o progresso "{item.planos_estudo?.title || 'N/A'}".
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(item.id)}>Excluir</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="member_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discípulo</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o discípulo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {members.map(member => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="plan_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plano de Ação</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o plano" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {plans.map(plan => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Não iniciado">Não iniciado</SelectItem>
+                        <SelectItem value="Em progresso">Em progresso</SelectItem>
+                        <SelectItem value="Concluído">Concluído</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Anotações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Adicione anotações relevantes..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Registar
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
-    </main>
-  );
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico de Progressos</CardTitle>
+          <CardDescription>
+            Visualize todos os progressos registados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Discípulo</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Anotações</TableHead>
+                <TableHead>Data</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-40" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-8 w-8" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : progress.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    Nenhum progresso encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                progress.map(progressItem => (
+                  <TableRow key={progressItem.id}>
+                    <TableCell>
+                      {progressItem.members?.full_name || 'N/A'}
+                    </TableCell>
+                    <TableCell>{progressItem.plans?.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge>{progressItem.status}</Badge>
+                    </TableCell>
+                    <TableCell>{progressItem.notes}</TableCell>
+                    <TableCell>
+                      {new Date(progressItem.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedProgress(progressItem)
+                              setIsEditDialogOpen(true)
+                            }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => {
+                              setSelectedProgress(progressItem)
+                              setIsDeleteDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Diálogo de Edição */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Progresso</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do progresso abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onEditSubmit)}
+              className="space-y-8"
+            >
+              {/* Campos do formulário são os mesmos da criação */}
+              <FormField
+                control={form.control}
+                name="member_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discípulo</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o discípulo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {members.map(member => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="plan_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plano de Ação</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o plano" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {plans.map(plan => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Não iniciado">Não iniciado</SelectItem>
+                        <SelectItem value="Em progresso">Em progresso</SelectItem>
+                        <SelectItem value="Concluído">Concluído</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Anotações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Adicione anotações relevantes..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Salvar Alterações
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de Confirmação para Excluir */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tem a certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isto irá apagar permanentemente o
+              registo de progresso.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                'Confirmar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
 }
+
