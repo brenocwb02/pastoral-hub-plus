@@ -68,19 +68,19 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 // Tipos
-type Progress = Database['public']['Tables']['progress']['Row']
-type Member = Database['public']['Tables']['members']['Row']
-type Plan = Database['public']['Tables']['plans']['Row']
+type Progress = Database['public']['Tables']['progresso']['Row']
+type Member = Database['public']['Tables']['membros']['Row']
+type Plan = Database['public']['Tables']['planos_estudo']['Row']
 
 type ProgressWithNames = Progress & {
-  members: { full_name: string } | null
-  plans: { name: string } | null
+  membros: { full_name: string } | null
+  planos_estudo: { title: string } | null
 }
 
 const progressSchema = z.object({
-  member_id: z.string().uuid({ message: 'Selecione um discípulo.' }),
-  plan_id: z.string().uuid({ message: 'Selecione um plano de ação.' }),
-  status: z.enum(['Não iniciado', 'Em progresso', 'Concluído']),
+  membro_id: z.string().min(1, { message: 'Selecione um discípulo.' }),
+  plano_id: z.string().min(1, { message: 'Selecione um plano de ação.' }),
+  status: z.enum(['not_started', 'in_progress', 'completed']),
   notes: z.string().optional(),
 })
 
@@ -101,9 +101,9 @@ export function Progress() {
   const form = useForm<z.infer<typeof progressSchema>>({
     resolver: zodResolver(progressSchema),
     defaultValues: {
-      member_id: '',
-      plan_id: '',
-      status: 'Não iniciado',
+      membro_id: '',
+      plano_id: '',
+      status: 'not_started',
       notes: '',
     },
   })
@@ -111,15 +111,15 @@ export function Progress() {
   async function fetchData() {
     setIsLoading(true)
     const { data: progressData, error: progressError } = await supabase
-      .from('progress')
-      .select('*, members(full_name), plans(name)')
+      .from('progresso')
+      .select('*, membros(full_name), planos_estudo(title)')
       .order('created_at', { ascending: false })
 
     const { data: membersData, error: membersError } = await supabase
-      .from('members')
+      .from('membros')
       .select('*')
     const { data: plansData, error: plansError } = await supabase
-      .from('plans')
+      .from('planos_estudo')
       .select('*')
 
     if (progressError || membersError || plansError) {
@@ -147,8 +147,8 @@ export function Progress() {
   useEffect(() => {
     if (selectedProgress) {
       form.reset({
-        member_id: selectedProgress.member_id,
-        plan_id: selectedProgress.plan_id,
+        membro_id: selectedProgress.membro_id,
+        plano_id: selectedProgress.plano_id,
         status: selectedProgress.status,
         notes: selectedProgress.notes || '',
       })
@@ -157,7 +157,12 @@ export function Progress() {
 
   async function onSubmit(values: z.infer<typeof progressSchema>) {
     setIsSubmitting(true)
-    const { error } = await supabase.from('progress').insert([values])
+    const { error } = await supabase.from('progresso').insert([{
+      membro_id: values.membro_id,
+      plano_id: values.plano_id,
+      status: values.status,
+      notes: values.notes || '',
+    }])
     if (error) {
       toast({
         variant: 'destructive',
@@ -181,7 +186,7 @@ export function Progress() {
 
     setIsSubmitting(true)
     const { error } = await supabase
-      .from('progress')
+      .from('progresso')
       .update(values)
       .eq('id', selectedProgress.id)
 
@@ -210,7 +215,7 @@ export function Progress() {
 
     setIsSubmitting(true)
     const { error } = await supabase
-      .from('progress')
+      .from('progresso')
       .delete()
       .eq('id', selectedProgress.id)
 
@@ -246,7 +251,7 @@ export function Progress() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <FormField
                 control={form.control}
-                name="member_id"
+                name="membro_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discípulo</FormLabel>
@@ -273,7 +278,7 @@ export function Progress() {
               />
               <FormField
                 control={form.control}
-                name="plan_id"
+                name="plano_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Plano de Ação</FormLabel>
@@ -289,7 +294,7 @@ export function Progress() {
                       <SelectContent>
                         {plans.map(plan => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name}
+                            {plan.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -314,9 +319,9 @@ export function Progress() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Não iniciado">Não iniciado</SelectItem>
-                        <SelectItem value="Em progresso">Em progresso</SelectItem>
-                        <SelectItem value="Concluído">Concluído</SelectItem>
+                        <SelectItem value="not_started">Não iniciado</SelectItem>
+                        <SelectItem value="in_progress">Em progresso</SelectItem>
+                        <SelectItem value="completed">Concluído</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -403,11 +408,15 @@ export function Progress() {
                 progress.map(progressItem => (
                   <TableRow key={progressItem.id}>
                     <TableCell>
-                      {progressItem.members?.full_name || 'N/A'}
+                      {progressItem.membros?.full_name || 'N/A'}
                     </TableCell>
-                    <TableCell>{progressItem.plans?.name || 'N/A'}</TableCell>
+                    <TableCell>{progressItem.planos_estudo?.title || 'N/A'}</TableCell>
                     <TableCell>
-                      <Badge>{progressItem.status}</Badge>
+                      <Badge>
+                        {progressItem.status === 'not_started' && 'Não iniciado'}
+                        {progressItem.status === 'in_progress' && 'Em progresso'}
+                        {progressItem.status === 'completed' && 'Concluído'}
+                      </Badge>
                     </TableCell>
                     <TableCell>{progressItem.notes}</TableCell>
                     <TableCell>
@@ -471,7 +480,7 @@ export function Progress() {
               {/* Campos do formulário são os mesmos da criação */}
               <FormField
                 control={form.control}
-                name="member_id"
+                name="membro_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discípulo</FormLabel>
@@ -498,7 +507,7 @@ export function Progress() {
               />
               <FormField
                 control={form.control}
-                name="plan_id"
+                name="plano_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Plano de Ação</FormLabel>
@@ -514,7 +523,7 @@ export function Progress() {
                       <SelectContent>
                         {plans.map(plan => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name}
+                            {plan.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -539,9 +548,9 @@ export function Progress() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Não iniciado">Não iniciado</SelectItem>
-                        <SelectItem value="Em progresso">Em progresso</SelectItem>
-                        <SelectItem value="Concluído">Concluído</SelectItem>
+                        <SelectItem value="not_started">Não iniciado</SelectItem>
+                        <SelectItem value="in_progress">Em progresso</SelectItem>
+                        <SelectItem value="completed">Concluído</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -605,3 +614,5 @@ export function Progress() {
     </div>
   )
 }
+
+export default Progress

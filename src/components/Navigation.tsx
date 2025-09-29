@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const navigationItems = [
   { href: "/", label: "Início", icon: Home },
@@ -47,6 +48,7 @@ export function Navigation() {
   // Estado para armazenar a sessão do usuário
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { roles, isLoading: rolesLoading } = useUserRoles();
 
   // Efeito para verificar o estado de autenticação ao carregar o componente
   useEffect(() => {
@@ -99,6 +101,11 @@ export function Navigation() {
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
+            
+            // Hide "Papéis" link if user is not a pastor
+            if (item.href === '/admin/roles' && !roles.includes('pastor')) {
+              return null;
+            }
             
             return (
               <Link
@@ -173,6 +180,11 @@ export function Navigation() {
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
+              
+              // Hide "Papéis" link if user is not a pastor
+              if (item.href === '/admin/roles' && !roles.includes('pastor')) {
+                return null;
+              }
               
               return (
                 <Link
