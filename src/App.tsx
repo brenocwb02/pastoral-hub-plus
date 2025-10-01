@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import CalendarPage from "./pages/Calendar";
@@ -29,15 +30,15 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/members" element={<MembersPage />} />
-          <Route path="/houses" element={<HousesPage />} />
-          <Route path="/one-on-ones" element={<OneOnOnesPage />} />
-          <Route path="/meetings" element={<MeetingsPage />} />
-          <Route path="/plans" element={<PlansPage />} />
-          <Route path="/progress" element={<ProgressPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/admin/roles" element={<AdminRolesPage />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/members" element={<ProtectedRoute><MembersPage /></ProtectedRoute>} />
+          <Route path="/houses" element={<ProtectedRoute><HousesPage /></ProtectedRoute>} />
+          <Route path="/one-on-ones" element={<ProtectedRoute><OneOnOnesPage /></ProtectedRoute>} />
+          <Route path="/meetings" element={<ProtectedRoute><MeetingsPage /></ProtectedRoute>} />
+          <Route path="/plans" element={<ProtectedRoute><PlansPage /></ProtectedRoute>} />
+          <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+          <Route path="/admin/roles" element={<ProtectedRoute><AdminRolesPage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

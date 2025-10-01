@@ -42,14 +42,14 @@ export default function AuthPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id ?? null);
       if (session?.user) {
-        navigate("/");
+        navigate("/dashboard");
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       if (session?.user) {
-        navigate("/");
+        navigate("/dashboard");
       }
     });
 
