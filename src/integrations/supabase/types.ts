@@ -42,22 +42,7 @@ export type Database = {
           nome?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "casas_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "casas_leader_id_fkey"
-            columns: ["leader_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       encontros_1a1: {
         Row: {
@@ -101,20 +86,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "encontros_1a1_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "encontros_1a1_discipulador_id_fkey"
-            columns: ["discipulador_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "encontros_1a1_discipulo_membro_id_fkey"
             columns: ["discipulo_membro_id"]
             isOneToOne: false
@@ -148,15 +119,7 @@ export type Database = {
           token_type?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "google_tokens_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       membros: {
         Row: {
@@ -215,27 +178,6 @@ export type Database = {
             referencedRelation: "casas"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "membros_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "membros_discipulador_id_fkey"
-            columns: ["discipulador_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "membros_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       notifications: {
@@ -275,15 +217,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["notification_status"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       planos_estudo: {
         Row: {
@@ -310,15 +244,7 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "planos_estudo_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -342,15 +268,7 @@ export type Database = {
           phone?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       progresso: {
         Row: {
@@ -431,15 +349,7 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "reunioes_gerais_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -457,34 +367,25 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
-      users_with_roles: {
-        Row: {
-          email: string | null
-          email_confirmed_at: string | null
-          full_name: string | null
-          id: string | null
-          roles: Database["public"]["Enums"]["app_role"][] | null
-          user_created_at: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       assign_pastor_role_to_user: {
         Args: { user_email: string }
         Returns: undefined
+      }
+      get_users_with_roles: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          email: string
+          full_name: string
+          roles: Database["public"]["Enums"]["app_role"][]
+          user_id: string
+        }[]
       }
       has_role: {
         Args: {

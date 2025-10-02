@@ -37,12 +37,8 @@ import {
 interface UserRole {
   user_id: string;
   email: string;
-  roles: string[];
-}
-
-interface Profile {
-  id: string;
   full_name?: string;
+  roles: string[];
 }
 
 const roleLabels = {
@@ -60,7 +56,6 @@ const roleIcons = {
 export default function AdminRolesPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRole[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
 
@@ -117,41 +112,20 @@ export default function AdminRolesPage() {
 
   const loadUsersAndRoles = async () => {
     try {
-      // Get all users with their roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
+      // Use the secure RPC function to get users with roles
+      const { data, error } = await supabase.rpc('get_users_with_roles');
 
-      if (rolesError) throw rolesError;
+      if (error) throw error;
 
-      // Get all profiles to get names
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name");
+      // Transform data to match our UserRole interface
+      const usersWithRoles: UserRole[] = (data || []).map((user: any) => ({
+        user_id: user.user_id,
+        email: user.email || 'Email não disponível',
+        full_name: user.full_name,
+        roles: user.roles || []
+      }));
 
-      if (profilesError) throw profilesError;
-
-      setProfiles(profiles || []);
-
-      // Group roles by user
-      const userRoleMap = new Map<string, UserRole>();
-      
-      if (userRoles) {
-        userRoles.forEach(ur => {
-          if (!userRoleMap.has(ur.user_id)) {
-            userRoleMap.set(ur.user_id, {
-              user_id: ur.user_id,
-              email: ur.user_id, // We'll need to get this from auth metadata
-              roles: []
-            });
-          }
-          userRoleMap.get(ur.user_id)!.roles.push(ur.role);
-        });
-      }
-
-      // Get user emails from auth.users via RPC or use the user IDs as placeholders
-      const usersArray = Array.from(userRoleMap.values());
-      setUsers(usersArray);
+      setUsers(usersWithRoles);
 
     } catch (error) {
       console.error("Error loading users and roles:", error);
@@ -213,9 +187,8 @@ export default function AdminRolesPage() {
     }
   };
 
-  const getUserDisplayName = (userId: string) => {
-    const profile = profiles.find(p => p.id === userId);
-    return profile?.full_name || `Usuário ${userId.slice(0, 8)}...`;
+  const getUserDisplayName = (user: UserRole) => {
+    return user.full_name || user.email || `Usuário ${user.user_id.slice(0, 8)}...`;
   };
 
   if (loading) {
@@ -275,10 +248,8 @@ export default function AdminRolesPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-medium">{getUserDisplayName(user.user_id)}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        ID: {user.user_id.slice(0, 8)}...
-                      </p>
+                      <h3 className="font-medium">{getUserDisplayName(user)}</h3>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                     <div className="flex gap-2">
                       {user.roles.map((role) => {
@@ -324,7 +295,7 @@ export default function AdminRolesPage() {
                             <AlertDialogTitle>Confirmar remoção</AlertDialogTitle>
                             <AlertDialogDescription>
                               Tem certeza que deseja remover o papel de {roleLabels[role as keyof typeof roleLabels]} 
-                              do usuário {getUserDisplayName(user.user_id)}?
+                              do usuário {getUserDisplayName(user)}?
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
