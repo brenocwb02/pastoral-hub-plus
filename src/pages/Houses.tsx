@@ -38,7 +38,7 @@ export default function HousesPage() {
     },
   });
 
-  useEffect(() => { setSEO("Casas | Cuidar+", "Gerencie casas e líderes"); }, []);
+  useEffect(() => { setSEO("Igrejas no Lar | Cuidar+", "Gerencie igrejas no lar e líderes"); }, []);
 
   const load = useMemo(() => async () => {
     setLoading(true);
@@ -108,18 +108,18 @@ export default function HousesPage() {
     <main className="container mx-auto p-4 space-y-4">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">Casas</h1>
-          <p className="text-muted-foreground">Lista e criação de casas (restrito por permissões).</p>
+          <h1 className="text-2xl font-semibold">Igrejas no Lar</h1>
+          <p className="text-muted-foreground">Lista e criação de igrejas no lar (restrito por permissões).</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleDialogOpen(null)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Nova Casa
+              <PlusCircle className="mr-2 h-4 w-4" /> Nova Igreja no Lar
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingItem ? "Editar Casa" : "Nova Casa"}</DialogTitle>
+              <DialogTitle>{editingItem ? "Editar Igreja no Lar" : "Nova Igreja no Lar"}</DialogTitle>
               <DialogDescription>
                 Preencha os detalhes abaixo. Campos com * são obrigatórios.
               </DialogDescription>
@@ -133,7 +133,7 @@ export default function HousesPage() {
                     <FormItem>
                       <FormLabel>Nome *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Casa da Paz Central" {...field} />
+                        <Input placeholder="Igreja no Lar Central" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -165,7 +165,7 @@ export default function HousesPage() {
       </header>
 
       <Card>
-        <CardHeader><CardTitle>Casas ({items.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Igrejas no Lar ({items.length})</CardTitle></CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center items-center py-8">
@@ -193,7 +193,7 @@ export default function HousesPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Isso excluirá permanentemente a casa "{item.nome}".
+                            Esta ação não pode ser desfeita. Isso excluirá permanentemente a igreja no lar "{item.nome}".
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

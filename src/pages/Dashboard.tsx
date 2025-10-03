@@ -14,12 +14,14 @@ import {
   Plus,
   ArrowRight,
   Activity,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { setSEO } from "@/lib/seo";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Stats {
   totalMembers: number;
@@ -28,6 +30,13 @@ interface Stats {
   totalMeetings: number;
   recentActivities: Activity[];
   upcomingEvents: Event[];
+  membersWithoutDiscipulador: number;
+  monthlyGrowth: MonthlyGrowth[];
+}
+
+interface MonthlyGrowth {
+  month: string;
+  members: number;
 }
 
 interface Activity {
@@ -51,7 +60,9 @@ export default function Dashboard() {
     totalOneOnOnes: 0,
     totalMeetings: 0,
     recentActivities: [],
-    upcomingEvents: []
+    upcomingEvents: [],
+    membersWithoutDiscipulador: 0,
+    monthlyGrowth: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -158,13 +169,40 @@ export default function Dashboard() {
         return a.timestamp.localeCompare(b.timestamp);
       });
 
+      // Get members without discipulador for alert
+      const { count: membersWithoutDiscipuladorCount } = await supabase
+        .from("membros")
+        .select("id", { count: "exact", head: true })
+        .is("discipulador_id", null);
+
+      // Calculate monthly growth (last 6 months)
+      const monthlyGrowth: MonthlyGrowth[] = [];
+      const now = new Date();
+      
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        
+        const { count } = await supabase
+          .from("membros")
+          .select("id", { count: "exact", head: true })
+          .lt("created_at", nextMonth.toISOString());
+        
+        monthlyGrowth.push({
+          month: date.toLocaleDateString('pt-BR', { month: 'short' }),
+          members: count || 0
+        });
+      }
+
       setStats({
         totalMembers: membersResult.count || 0,
         totalHouses: housesResult.count || 0,
         totalOneOnOnes: oneOnOnesResult.count || 0,
         totalMeetings: meetingsResult.count || 0,
         recentActivities: recentActivities.slice(0, 3),
-        upcomingEvents: upcomingEvents.slice(0, 3)
+        upcomingEvents: upcomingEvents.slice(0, 3),
+        membersWithoutDiscipulador: membersWithoutDiscipuladorCount || 0,
+        monthlyGrowth
       });
 
     } catch (error) {
@@ -194,7 +232,7 @@ export default function Dashboard() {
 
   const quickActions = [
     { icon: Users, label: "Novo Membro", href: "/members", color: "bg-blue-500" },
-    { icon: Building2, label: "Nova Casa", href: "/houses", color: "bg-green-500" },
+    { icon: Building2, label: "Nova Igreja no Lar", href: "/houses", color: "bg-green-500" },
     { icon: MessageCircle, label: "Agendar 1 a 1", href: "/one-on-ones", color: "bg-purple-500" },
     { icon: Calendar, label: "Nova Reunião", href: "/meetings", color: "bg-orange-500" },
   ];
@@ -250,7 +288,7 @@ export default function Dashboard() {
                   ) : (
                     <p className="text-3xl font-bold">{stats.totalHouses}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">Casas de Paz</p>
+                  <p className="text-sm text-muted-foreground">Igrejas no Lar</p>
                 </div>
               </div>
             </CardContent>
@@ -292,6 +330,70 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Alerts Section */}
+        {stats.membersWithoutDiscipulador > 0 && (
+          <Card className="border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-medium text-orange-900 dark:text-orange-100">
+                    Membros sem Discipulador
+                  </h3>
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                    Existem {stats.membersWithoutDiscipulador} membro(s) sem discipulador atribuído. 
+                    <Link to="/members" className="underline ml-1">Ver lista</Link>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Growth Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Crescimento de Membros (6 meses)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={stats.monthlyGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="month" 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="members" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Quick Actions */}
         <div className="mb-8">

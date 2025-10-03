@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, PlusCircle, Pencil, Trash2 } from "lucide-react";
+import { Loader2, PlusCircle, Pencil, Trash2, Eye } from "lucide-react";
+import { SearchAndFilters } from "@/components/SearchAndFilters";
 
 // Tipagem para membros, incluindo dados do discipulador e casa
 interface Membro {
@@ -45,6 +47,9 @@ export default function MembersPage() {
   const [editingMember, setEditingMember] = useState<Membro | null>(null);
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [casas, setCasas] = useState<Casa[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCasa, setFilterCasa] = useState("");
+  const [filterDiscipulador, setFilterDiscipulador] = useState("");
 
   const form = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
@@ -183,6 +188,19 @@ export default function MembersPage() {
     }
   }
 
+  // Filter members based on search and filters
+  const filteredMembers = items.filter(member => {
+    const matchesSearch = searchQuery === "" || 
+      member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.phone?.includes(searchQuery);
+    
+    const matchesCasa = filterCasa === "" || member.casa_id === filterCasa;
+    const matchesDiscipulador = filterDiscipulador === "" || member.discipulador_id === filterDiscipulador;
+
+    return matchesSearch && matchesCasa && matchesDiscipulador;
+  });
+
   return (
     <main className="container mx-auto p-4 space-y-4">
       <header className="flex justify-between items-center">
@@ -276,9 +294,9 @@ export default function MembersPage() {
                 )}/>
                 <FormField control={form.control} name="casa_id" render={({ field }) => (
                   <FormItem className="sm:col-span-2">
-                    <FormLabel>Casa de Paz</FormLabel>
+                    <FormLabel>Igreja no Lar</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ""}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Selecione a casa de paz" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Selecione a igreja no lar" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {casas.map(c => (<SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>))}
                       </SelectContent>
@@ -299,20 +317,56 @@ export default function MembersPage() {
       </header>
 
       <Card>
-        <CardHeader><CardTitle>Membros ({items.length})</CardTitle></CardHeader>
-        <CardContent>
+        <CardHeader>
+          <CardTitle>Membros ({items.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SearchAndFilters
+            searchPlaceholder="Buscar por nome, email ou telefone..."
+            onSearchChange={setSearchQuery}
+            filters={[
+              {
+                id: "casa",
+                label: "Igreja no Lar",
+                options: casas.map(c => ({ value: c.id, label: c.nome })),
+                value: filterCasa,
+                onChange: setFilterCasa,
+              },
+              {
+                id: "discipulador",
+                label: "Discipulador",
+                options: discipuladores.map(d => ({ value: d.id, label: d.full_name || "Sem nome" })),
+                value: filterDiscipulador,
+                onChange: setFilterDiscipulador,
+              },
+            ]}
+            onClearFilters={() => {
+              setFilterCasa("");
+              setFilterDiscipulador("");
+            }}
+            resultCount={filteredMembers.length}
+          />
           {loading ? (
             <div className="flex justify-center items-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchQuery || filterCasa || filterDiscipulador ? "Nenhum membro encontrado com os filtros aplicados" : "Nenhum membro cadastrado"}
+            </div>
           ) : (
             <div className="space-y-2">
-              {items.map(m => (
-                <div key={m.id} className="rounded-md border p-3 flex justify-between items-center">
-                  <div>
+              {filteredMembers.map(m => (
+                <div key={m.id} className="rounded-md border p-3 flex justify-between items-center hover:bg-muted/50 transition-colors">
+                  <div className="flex-1">
                     <div className="font-medium">{m.full_name}</div>
                     <div className="text-sm text-muted-foreground">{m.email} {m.phone && `• ${m.phone}`}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{m.casas?.nome || "Sem casa de paz"}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{m.casas?.nome || "Sem igreja no lar"}</div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" asChild>
+                      <Link to={`/members/${m.id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(m)}>
                       <Pencil className="h-4 w-4" />
                     </Button>

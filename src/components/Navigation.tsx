@@ -33,7 +33,7 @@ const navigationItems = [
   { href: "/", label: "Início", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/members", label: "Membros", icon: Users },
-  { href: "/houses", label: "Casas", icon: Building2 },
+  { href: "/houses", label: "Igrejas no Lar", icon: Building2 },
   { href: "/one-on-ones", label: "1 a 1", icon: MessageCircle },
   { href: "/meetings", label: "Reuniões", icon: Calendar },
   { href: "/plans", label: "Planos", icon: BookOpen },
