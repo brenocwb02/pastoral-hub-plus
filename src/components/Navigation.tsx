@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  History
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ const navigationItems = [
   { href: "/calendar", label: "Calendário", icon: Calendar },
   { href: "/reports", label: "Relatórios", icon: BookOpen },
   { href: "/admin/roles", label: "Papéis", icon: UserIcon },
+  { href: "/admin/audit", label: "Auditoria", icon: History },
 ];
 
 export function Navigation() {
@@ -104,8 +106,8 @@ export function Navigation() {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
-            // Hide "Papéis" link if user is not a pastor
-            if (item.href === '/admin/roles' && !roles.includes('pastor')) {
+            // Hide "Papéis" and "Auditoria" links if user is not a pastor
+            if ((item.href === '/admin/roles' || item.href === '/admin/audit') && !roles.includes('pastor')) {
               return null;
             }
             
@@ -184,8 +186,8 @@ export function Navigation() {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               
-              // Hide "Papéis" link if user is not a pastor
-              if (item.href === '/admin/roles' && !roles.includes('pastor')) {
+              // Hide "Papéis" and "Auditoria" links if user is not a pastor
+              if ((item.href === '/admin/roles' || item.href === '/admin/audit') && !roles.includes('pastor')) {
                 return null;
               }
               

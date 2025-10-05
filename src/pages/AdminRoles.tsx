@@ -44,12 +44,14 @@ interface UserRole {
 const roleLabels = {
   membro: "Membro",
   discipulador: "Discipulador", 
+  lider_casa: "Líder de Casa",
   pastor: "Pastor"
 };
 
 const roleIcons = {
   membro: User,
   discipulador: Users,
+  lider_casa: Shield,
   pastor: Crown
 };
 
@@ -141,7 +143,7 @@ export default function AdminRolesPage() {
     try {
       const { error } = await supabase
         .from("user_roles")
-        .insert({ user_id: userId, role: role as "pastor" | "discipulador" | "membro" });
+        .insert({ user_id: userId, role: role as "pastor" | "discipulador" | "lider_casa" | "membro" });
 
       if (error) throw error;
 
@@ -167,7 +169,7 @@ export default function AdminRolesPage() {
         .from("user_roles")
         .delete()
         .eq("user_id", userId)
-        .eq("role", role as "pastor" | "discipulador" | "membro");
+        .eq("role", role as "pastor" | "discipulador" | "lider_casa" | "membro");
 
       if (error) throw error;
 
