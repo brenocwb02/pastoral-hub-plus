@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navigationItems = [
   { href: "/", label: "Início", icon: Home },
@@ -39,6 +40,7 @@ const navigationItems = [
   { href: "/plans", label: "Planos", icon: BookOpen },
   { href: "/progress", label: "Progresso", icon: TrendingUp },
   { href: "/calendar", label: "Calendário", icon: Calendar },
+  { href: "/reports", label: "Relatórios", icon: BookOpen },
   { href: "/admin/roles", label: "Papéis", icon: UserIcon },
 ];
 
@@ -127,6 +129,7 @@ export function Navigation() {
 
         {/* Botão de Autenticação ou Menu do Usuário (Desktop) */}
         <div className="hidden md:flex items-center space-x-2">
+          {user && <NotificationBell />}
           {loading ? (
             <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
           ) : user ? (
