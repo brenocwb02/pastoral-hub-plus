@@ -396,7 +396,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "pastor" | "discipulador" | "membro"
+      app_role: "pastor" | "discipulador" | "membro" | "lider_casa"
       notification_channel: "none" | "telegram" | "whatsapp"
       notification_status: "pending" | "sent" | "failed"
       progress_status: "not_started" | "in_progress" | "completed"
@@ -527,7 +527,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["pastor", "discipulador", "membro"],
+      app_role: ["pastor", "discipulador", "membro", "lider_casa"],
       notification_channel: ["none", "telegram", "whatsapp"],
       notification_status: ["pending", "sent", "failed"],
       progress_status: ["not_started", "in_progress", "completed"],
