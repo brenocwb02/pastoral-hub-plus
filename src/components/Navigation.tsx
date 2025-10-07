@@ -13,7 +13,9 @@ import {
   X,
   LogOut,
   User as UserIcon,
-  History
+  History,
+  Bell,
+  FileText
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -41,7 +43,8 @@ const navigationItems = [
   { href: "/plans", label: "Planos", icon: BookOpen },
   { href: "/progress", label: "Progresso", icon: TrendingUp },
   { href: "/calendar", label: "Calendário", icon: Calendar },
-  { href: "/reports", label: "Relatórios", icon: BookOpen },
+  { href: "/notifications", label: "Notificações", icon: Bell },
+  { href: "/reports", label: "Relatórios", icon: FileText },
   { href: "/admin/roles", label: "Papéis", icon: UserIcon },
   { href: "/admin/audit", label: "Auditoria", icon: History },
 ];
@@ -106,8 +109,13 @@ export function Navigation() {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
-            // Hide "Papéis" and "Auditoria" links if user is not a pastor
+            // Hide certain links based on roles
             if ((item.href === '/admin/roles' || item.href === '/admin/audit') && !roles.includes('pastor')) {
+              return null;
+            }
+            
+            // Hide reports if not pastor or lider_casa
+            if (item.href === '/reports' && !roles.includes('pastor') && !roles.includes('lider_casa')) {
               return null;
             }
             
@@ -186,8 +194,13 @@ export function Navigation() {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               
-              // Hide "Papéis" and "Auditoria" links if user is not a pastor
+              // Hide certain links based on roles
               if ((item.href === '/admin/roles' || item.href === '/admin/audit') && !roles.includes('pastor')) {
+                return null;
+              }
+              
+              // Hide reports if not pastor or lider_casa
+              if (item.href === '/reports' && !roles.includes('pastor') && !roles.includes('lider_casa')) {
                 return null;
               }
               

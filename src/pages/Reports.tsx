@@ -1,235 +1,433 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
-import { Download, FileText, Users, Calendar } from "lucide-react";
-import { formatDate } from "@/lib/formatters";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { 
+  FileText, 
+  Download, 
+  Calendar,
+  Users,
+  TrendingUp,
+  Home,
+  BookOpen,
+  Shield
+} from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+interface ReportData {
+  membros: {
+    total: number;
+    comDiscipulador: number;
+    semDiscipulador: number;
+    porCasa: Array<{ casa: string; count: number }>;
+  };
+  casas: {
+    total: number;
+    comLider: number;
+    semLider: number;
+  };
+  encontros: {
+    total: number;
+    proximos30Dias: number;
+    ultimoMes: number;
+  };
+  reunioes: {
+    total: number;
+    proximas: number;
+    realizadas: number;
+  };
+  progresso: {
+    naoIniciado: number;
+    emProgresso: number;
+    concluido: number;
+  };
+}
 
 export default function ReportsPage() {
   const { toast } = useToast();
-  const [loading, setLoading] = useState<string | null>(null);
+  const { roles } = useUserRoles();
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
 
   useEffect(() => {
-    setSEO("Relatórios | Cuidar+", "Exporte relatórios e dados");
+    setSEO("Relatórios | Cuidar+", "Visualize relatórios consolidados do sistema");
+    checkPermissionAndLoadData();
   }, []);
 
-  const exportMembersCSV = async () => {
-    setLoading("members");
-    const { data, error } = await supabase
-      .from("membros")
-      .select(`
-        full_name, email, phone, endereco, 
-        data_nascimento, estado_civil, data_batismo,
-        casas(nome)
-      `)
-      .order("full_name");
+  const checkPermissionAndLoadData = async () => {
+    try {
+      setLoading(true);
 
-    if (error) {
-      toast({ title: "Erro ao exportar", description: error.message, variant: "destructive" });
-      setLoading(null);
-      return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Acesso negado",
+          description: "Você precisa estar logado",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const canAccess = roles?.some(r => r.role === "pastor" || r.role === "lider_casa");
+      
+      if (!canAccess) {
+        setHasPermission(false);
+        toast({
+          title: "Acesso negado",
+          description: "Apenas pastores e líderes de casa podem acessar relatórios",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setHasPermission(true);
+      await loadReportData();
+
+    } catch (error) {
+      console.error("Error checking permissions:", error);
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar permissões",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-
-    // Create CSV content
-    const headers = ["Nome", "Email", "Telefone", "Endereço", "Data Nascimento", "Estado Civil", "Data Batismo", "Igreja no Lar"];
-    const rows = data.map(m => [
-      m.full_name,
-      m.email || "",
-      m.phone || "",
-      m.endereco || "",
-      m.data_nascimento ? formatDate(m.data_nascimento) : "",
-      m.estado_civil || "",
-      m.data_batismo ? formatDate(m.data_batismo) : "",
-      (m.casas as any)?.nome || ""
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    // Download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `membros_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({ title: "Relatório exportado com sucesso" });
-    setLoading(null);
   };
 
-  const exportOneOnOnesCSV = async () => {
-    setLoading("1a1");
-    
-    // Get current month date range
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const loadReportData = async () => {
+    try {
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const { data, error } = await supabase
-      .from("encontros_1a1")
-      .select(`
-        scheduled_at, duration_minutes, notes,
-        membros!discipulo_membro_id(full_name)
-      `)
-      .gte("scheduled_at", firstDay)
-      .lte("scheduled_at", lastDay)
-      .order("scheduled_at", { ascending: false });
+      // Membros
+      const { data: membros } = await supabase.from("membros").select("id, discipulador_id, casa_id");
+      const { data: casas } = await supabase.from("casas").select("id, nome, leader_id");
+      
+      const membrosPorCasa = casas?.map(casa => ({
+        casa: casa.nome,
+        count: membros?.filter(m => m.casa_id === casa.id).length || 0
+      })) || [];
 
-    if (error) {
-      toast({ title: "Erro ao exportar", description: error.message, variant: "destructive" });
-      setLoading(null);
-      return;
+      // Encontros 1-a-1
+      const { count: totalEncontros } = await supabase
+        .from("encontros_1a1")
+        .select("id", { count: "exact", head: true });
+
+      const { count: encontrosProximos } = await supabase
+        .from("encontros_1a1")
+        .select("id", { count: "exact", head: true })
+        .gte("scheduled_at", now.toISOString())
+        .lte("scheduled_at", thirtyDaysFromNow.toISOString());
+
+      const { count: encontrosUltimoMes } = await supabase
+        .from("encontros_1a1")
+        .select("id", { count: "exact", head: true })
+        .gte("scheduled_at", thirtyDaysAgo.toISOString())
+        .lte("scheduled_at", now.toISOString());
+
+      // Reuniões
+      const { count: totalReunioes } = await supabase
+        .from("reunioes_gerais")
+        .select("id", { count: "exact", head: true });
+
+      const { count: reunioesProximas } = await supabase
+        .from("reunioes_gerais")
+        .select("id", { count: "exact", head: true })
+        .gte("scheduled_at", now.toISOString());
+
+      const { count: reunioesRealizadas } = await supabase
+        .from("reunioes_gerais")
+        .select("id", { count: "exact", head: true })
+        .lt("scheduled_at", now.toISOString());
+
+      // Progresso
+      const { data: progressoData } = await supabase
+        .from("progresso")
+        .select("status");
+
+      const progressoCounts = progressoData?.reduce((acc, p) => {
+        acc[p.status] = (acc[p.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      setReportData({
+        membros: {
+          total: membros?.length || 0,
+          comDiscipulador: membros?.filter(m => m.discipulador_id).length || 0,
+          semDiscipulador: membros?.filter(m => !m.discipulador_id).length || 0,
+          porCasa: membrosPorCasa
+        },
+        casas: {
+          total: casas?.length || 0,
+          comLider: casas?.filter(c => c.leader_id).length || 0,
+          semLider: casas?.filter(c => !c.leader_id).length || 0
+        },
+        encontros: {
+          total: totalEncontros || 0,
+          proximos30Dias: encontrosProximos || 0,
+          ultimoMes: encontrosUltimoMes || 0
+        },
+        reunioes: {
+          total: totalReunioes || 0,
+          proximas: reunioesProximas || 0,
+          realizadas: reunioesRealizadas || 0
+        },
+        progresso: {
+          naoIniciado: progressoCounts['not_started'] || 0,
+          emProgresso: progressoCounts['in_progress'] || 0,
+          concluido: progressoCounts['completed'] || 0
+        }
+      });
+
+    } catch (error) {
+      console.error("Error loading report data:", error);
+      toast({
+        title: "Erro ao carregar relatório",
+        description: "Não foi possível carregar os dados do relatório",
+        variant: "destructive"
+      });
     }
-
-    // Create CSV content
-    const headers = ["Data/Hora", "Discípulo", "Duração (min)", "Notas"];
-    const rows = data.map(item => [
-      formatDate(item.scheduled_at),
-      (item.membros as any)?.full_name || "N/A",
-      item.duration_minutes?.toString() || "60",
-      item.notes || ""
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    // Download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `encontros_1a1_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({ title: "Relatório exportado com sucesso" });
-    setLoading(null);
   };
 
-  const exportHousesCSV = async () => {
-    setLoading("houses");
-    const { data, error } = await supabase
-      .from("casas")
-      .select("nome, endereco, created_at")
-      .order("nome");
+  const exportReport = () => {
+    if (!reportData) return;
 
-    if (error) {
-      toast({ title: "Erro ao exportar", description: error.message, variant: "destructive" });
-      setLoading(null);
-      return;
-    }
+    const reportText = `
+RELATÓRIO CUIDAR+ - ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
 
-    // Create CSV content
-    const headers = ["Nome", "Endereço", "Data Criação"];
-    const rows = data.map(c => [
-      c.nome,
-      c.endereco || "",
-      formatDate(c.created_at)
-    ]);
+=== MEMBROS ===
+Total: ${reportData.membros.total}
+Com Discipulador: ${reportData.membros.comDiscipulador}
+Sem Discipulador: ${reportData.membros.semDiscipulador}
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+Membros por Casa:
+${reportData.membros.porCasa.map(c => `  ${c.casa}: ${c.count} membros`).join('\n')}
 
-    // Download file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
+=== CASAS (IGREJAS NO LAR) ===
+Total: ${reportData.casas.total}
+Com Líder: ${reportData.casas.comLider}
+Sem Líder: ${reportData.casas.semLider}
+
+=== ENCONTROS 1-A-1 ===
+Total: ${reportData.encontros.total}
+Próximos 30 dias: ${reportData.encontros.proximos30Dias}
+Último mês: ${reportData.encontros.ultimoMes}
+
+=== REUNIÕES GERAIS ===
+Total: ${reportData.reunioes.total}
+Próximas: ${reportData.reunioes.proximas}
+Realizadas: ${reportData.reunioes.realizadas}
+
+=== PROGRESSO DOS ESTUDOS ===
+Não Iniciado: ${reportData.progresso.naoIniciado}
+Em Progresso: ${reportData.progresso.emProgresso}
+Concluído: ${reportData.progresso.concluido}
+    `.trim();
+
+    const blob = new Blob([reportText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `igrejas_no_lar_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio-cuidar-${format(new Date(), "yyyy-MM-dd-HHmm")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-    toast({ title: "Relatório exportado com sucesso" });
-    setLoading(null);
+    toast({
+      title: "Relatório exportado",
+      description: "O relatório foi baixado com sucesso"
+    });
   };
 
-  const reportCards = [
-    {
-      title: "Membros",
-      description: "Lista completa de membros com todos os dados",
-      icon: Users,
-      action: exportMembersCSV,
-      loadingKey: "members"
-    },
-    {
-      title: "Encontros 1 a 1 (Mês Atual)",
-      description: "Relatório de encontros realizados no mês",
-      icon: Calendar,
-      action: exportOneOnOnesCSV,
-      loadingKey: "1a1"
-    },
-    {
-      title: "Igrejas no Lar",
-      description: "Lista de todas as igrejas no lar",
-      icon: FileText,
-      action: exportHousesCSV,
-      loadingKey: "houses"
-    }
-  ];
+  if (loading) {
+    return (
+      <main className="container mx-auto p-4 space-y-4">
+        <header>
+          <h1 className="text-2xl font-semibold">Relatórios</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </header>
+        <Skeleton className="h-96 w-full" />
+      </main>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <main className="container mx-auto p-4 space-y-4">
+        <Card className="border-destructive">
+          <CardContent className="p-6 text-center">
+            <Shield className="w-16 h-16 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
+            <p className="text-muted-foreground">
+              Esta página é restrita a pastores e líderes de casa.
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto p-4 space-y-4">
-      <header>
-        <h1 className="text-2xl font-semibold">Relatórios</h1>
-        <p className="text-muted-foreground">
-          Exporte dados em formato CSV para análise
-        </p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <FileText className="w-6 h-6" />
+            Relatórios
+          </h1>
+          <p className="text-muted-foreground">
+            Relatório consolidado gerado em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          </p>
+        </div>
+        <Button onClick={exportReport}>
+          <Download className="w-4 h-4 mr-2" />
+          Exportar Relatório
+        </Button>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {reportCards.map((report) => {
-          const Icon = report.icon;
-          return (
-            <Card key={report.loadingKey}>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Icon className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">{report.title}</CardTitle>
-                </div>
-                <CardDescription>{report.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  onClick={report.action}
-                  disabled={loading === report.loadingKey}
-                  className="w-full"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {loading === report.loadingKey ? "Exportando..." : "Exportar CSV"}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {reportData && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Membros
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-semibold">{reportData.membros.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Com Discipulador:</span>
+                <span className="font-semibold text-green-600">{reportData.membros.comDiscipulador}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Sem Discipulador:</span>
+                <span className="font-semibold text-orange-600">{reportData.membros.semDiscipulador}</span>
+              </div>
+              <div className="pt-3 border-t">
+                <p className="text-sm font-medium mb-2">Membros por Casa:</p>
+                {reportData.membros.porCasa.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm py-1">
+                    <span className="text-muted-foreground">{item.casa}:</span>
+                    <span>{item.count}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sobre os Relatórios</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>• Os arquivos CSV podem ser abertos no Excel, Google Sheets ou outros programas de planilha.</p>
-          <p>• Os dados são exportados conforme suas permissões de visualização.</p>
-          <p>• O relatório de Encontros 1 a 1 inclui apenas o mês atual.</p>
-          <p>• Use encoding UTF-8 ao abrir os arquivos para visualizar caracteres especiais corretamente.</p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="w-5 h-5" />
+                Casas (Igrejas no Lar)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-semibold">{reportData.casas.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Com Líder:</span>
+                <span className="font-semibold text-green-600">{reportData.casas.comLider}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Sem Líder:</span>
+                <span className="font-semibold text-orange-600">{reportData.casas.semLider}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Encontros 1-a-1
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-semibold">{reportData.encontros.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Próximos 30 dias:</span>
+                <span className="font-semibold text-blue-600">{reportData.encontros.proximos30Dias}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Último mês:</span>
+                <span className="font-semibold">{reportData.encontros.ultimoMes}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Reuniões Gerais
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-semibold">{reportData.reunioes.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Próximas:</span>
+                <span className="font-semibold text-blue-600">{reportData.reunioes.proximas}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Realizadas:</span>
+                <span className="font-semibold">{reportData.reunioes.realizadas}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                Progresso dos Estudos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{reportData.progresso.naoIniciado}</p>
+                  <p className="text-sm text-muted-foreground">Não Iniciado</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{reportData.progresso.emProgresso}</p>
+                  <p className="text-sm text-muted-foreground">Em Progresso</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">{reportData.progresso.concluido}</p>
+                  <p className="text-sm text-muted-foreground">Concluído</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   );
 }

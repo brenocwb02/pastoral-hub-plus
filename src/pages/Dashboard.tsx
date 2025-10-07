@@ -15,13 +15,14 @@ import {
   ArrowRight,
   Activity,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  UserCheck
 } from "lucide-react";
 import { setSEO } from "@/lib/seo";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 
 interface Stats {
   totalMembers: number;
@@ -32,6 +33,8 @@ interface Stats {
   upcomingEvents: Event[];
   membersWithoutDiscipulador: number;
   monthlyGrowth: MonthlyGrowth[];
+  progressData: ProgressData[];
+  casasData: CasaData[];
 }
 
 interface MonthlyGrowth {
@@ -52,6 +55,16 @@ interface Event {
   time: string;
 }
 
+interface ProgressData {
+  status: string;
+  count: number;
+}
+
+interface CasaData {
+  nome: string;
+  membros: number;
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
   const [stats, setStats] = useState<Stats>({
@@ -62,7 +75,9 @@ export default function Dashboard() {
     recentActivities: [],
     upcomingEvents: [],
     membersWithoutDiscipulador: 0,
-    monthlyGrowth: []
+    monthlyGrowth: [],
+    progressData: [],
+    casasData: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -194,6 +209,49 @@ export default function Dashboard() {
         });
       }
 
+      // Load progress data for chart
+      const { data: progressRaw } = await supabase
+        .from("progresso")
+        .select("status");
+
+      const progressCounts = (progressRaw || []).reduce((acc, p) => {
+        acc[p.status] = (acc[p.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const progressLabels: Record<string, string> = {
+        not_started: "Não Iniciado",
+        in_progress: "Em Progresso",
+        completed: "Concluído"
+      };
+
+      const progressData = Object.entries(progressCounts).map(([status, count]) => ({
+        status: progressLabels[status] || status,
+        count
+      }));
+
+      // Load casas data for chart
+      const { data: casasRaw } = await supabase
+        .from("casas")
+        .select("nome, id");
+
+      const casasData: CasaData[] = [];
+      if (casasRaw) {
+        for (const casa of casasRaw) {
+          const { count } = await supabase
+            .from("membros")
+            .select("id", { count: "exact", head: true })
+            .eq("casa_id", casa.id);
+          
+          if (count && count > 0) {
+            casasData.push({
+              nome: casa.nome,
+              membros: count
+            });
+          }
+        }
+      }
+
       setStats({
         totalMembers: membersResult.count || 0,
         totalHouses: housesResult.count || 0,
@@ -202,7 +260,9 @@ export default function Dashboard() {
         recentActivities: recentActivities.slice(0, 3),
         upcomingEvents: upcomingEvents.slice(0, 3),
         membersWithoutDiscipulador: membersWithoutDiscipuladorCount || 0,
-        monthlyGrowth
+        monthlyGrowth,
+        progressData,
+        casasData
       });
 
     } catch (error) {
@@ -236,6 +296,8 @@ export default function Dashboard() {
     { icon: MessageCircle, label: "Agendar 1 a 1", href: "/one-on-ones", color: "bg-purple-500" },
     { icon: Calendar, label: "Nova Reunião", href: "/meetings", color: "bg-orange-500" },
   ];
+
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))'];
 
   return (
     <div className="min-h-screen bg-background">
@@ -333,7 +395,7 @@ export default function Dashboard() {
 
         {/* Alerts Section */}
         {stats.membersWithoutDiscipulador > 0 && (
-          <Card className="border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20">
+          <Card className="border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 mb-8">
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
@@ -351,8 +413,72 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Charts Section */}
+        <div className="grid gap-6 md:grid-cols-2 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Membros por Casa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-64 w-full" />
+              ) : stats.casasData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={stats.casasData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="membros" fill="hsl(var(--primary))" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">
+                  Nenhum dado disponível
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Progresso dos Estudos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-64 w-full" />
+              ) : stats.progressData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={stats.progressData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ status, count }) => `${status}: ${count}`}
+                      outerRadius={80}
+                      fill="hsl(var(--primary))"
+                      dataKey="count"
+                    >
+                      {stats.progressData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">
+                  Nenhum dado disponível
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Growth Chart */}
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />
@@ -452,12 +578,6 @@ export default function Dashboard() {
                   </p>
                 )}
               </div>
-              <Button variant="ghost" className="w-full mt-4" asChild>
-                <Link to="/dashboard">
-                  Ver todas as atividades
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Link>
-              </Button>
             </CardContent>
           </Card>
 
@@ -480,17 +600,21 @@ export default function Dashboard() {
                   </>
                 ) : stats.upcomingEvents.length > 0 ? (
                   stats.upcomingEvents.map((event) => (
-                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                      <div>
-                        <p className="text-sm font-medium">{event.title}</p>
-                        <p className="text-xs text-muted-foreground">{event.date}</p>
+                    <div key={event.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/30">
+                      <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-6 h-6 text-primary" />
                       </div>
-                      <Badge variant="default">{event.time}</Badge>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{event.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {event.date} às {event.time}
+                        </p>
+                      </div>
                     </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum evento próximo
+                    Nenhum evento próximo agendado
                   </p>
                 )}
               </div>
