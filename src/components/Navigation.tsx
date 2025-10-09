@@ -162,6 +162,12 @@ export function Navigation() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/profile" className="flex w-full">
+                    <UserIcon className="mr-2 h-4 w-4" />
+                    <span>Meu Perfil</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>
