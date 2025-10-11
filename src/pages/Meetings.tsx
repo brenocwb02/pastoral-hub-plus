@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ interface Meeting {
 
 export default function MeetingsPage() {
   const { toast } = useToast();
+  const { roles } = useUserRoles();
+  const isPastor = roles.includes('pastor');
   const [items, setItems] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setDialogOpen] = useState(false);
@@ -140,7 +143,7 @@ export default function MeetingsPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen(null)}>
+            <Button onClick={() => handleDialogOpen(null)} disabled={!isPastor}>
               <PlusCircle className="mr-2 h-4 w-4" /> Nova Reunião
             </Button>
           </DialogTrigger>
@@ -244,12 +247,12 @@ export default function MeetingsPage() {
                     {item.description && <p className="text-sm mt-1 text-muted-foreground">{item.description}</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(item)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(item)} disabled={!isPastor}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled={!isPastor}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>

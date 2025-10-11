@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,8 @@ interface Membro { id: string; full_name: string }
 
 export default function OneOnOnesPage() {
   const { toast } = useToast();
+  const { roles } = useUserRoles();
+  const canCreate = roles.includes('pastor') || roles.includes('discipulador');
   const [items, setItems] = useState<OneOnOne[]>([]);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(false);
@@ -168,7 +171,7 @@ export default function OneOnOnesPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen(null)}>
+            <Button onClick={() => handleDialogOpen(null)} disabled={!canCreate}>
               <PlusCircle className="mr-2 h-4 w-4" /> Novo Encontro
             </Button>
           </DialogTrigger>
@@ -283,16 +286,16 @@ export default function OneOnOnesPage() {
                     </div>
                     {item.notes && <p className="text-sm mt-1 text-muted-foreground">{item.notes}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(item)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(item)} disabled={!canCreate}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled={!canCreate}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>

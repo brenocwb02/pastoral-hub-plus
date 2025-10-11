@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,8 @@ interface Casa { id: string; nome: string; }
 
 export default function MembersPage() {
   const { toast } = useToast();
+  const { roles } = useUserRoles();
+  const canCreate = roles.includes('pastor') || roles.includes('discipulador');
   const [items, setItems] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setDialogOpen] = useState(false);
@@ -210,7 +213,7 @@ export default function MembersPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleDialogOpen(null)}>
+            <Button onClick={() => handleDialogOpen(null)} disabled={!canCreate}>
               <PlusCircle className="mr-2 h-4 w-4" /> Novo Membro
             </Button>
           </DialogTrigger>
@@ -367,12 +370,12 @@ export default function MembersPage() {
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(m)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(m)} disabled={!canCreate}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled={!canCreate}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
