@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
+import { DashboardReports } from "@/components/DashboardReports";
 
 interface Stats {
   totalMembers: number;
@@ -319,7 +320,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div data-tour="stats-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/20">
             <CardContent className="p-6">
               <div className="flex items-center space-x-4">
@@ -413,8 +414,23 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Reports Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4">Relatórios e Métricas</h2>
+          <DashboardReports 
+            metrics={{
+              attendanceRate: 78,
+              activeMembers: stats.totalMembers - stats.membersWithoutDiscipulador,
+              inactiveMembers: stats.membersWithoutDiscipulador,
+              studyCompletionRate: 65,
+              oneOnOneFrequency: stats.totalOneOnOnes,
+              trend: 'up'
+            }}
+          />
+        </div>
+
         {/* Charts Section */}
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
+        <div data-tour="charts" className="grid gap-6 md:grid-cols-2 mb-8">
           <Card>
             <CardHeader>
               <CardTitle>Membros por Casa</CardTitle>
@@ -524,7 +540,7 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">Ações Rápidas</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div data-tour="quick-actions" className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (

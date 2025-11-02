@@ -13,6 +13,7 @@ import { Loader2, User, Mail, Phone, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { formatPhone } from "@/lib/formatters";
+import { NotificationSettings } from "@/components/NotificationSettings";
 
 const profileSchema = z.object({
   full_name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -208,6 +209,8 @@ export default function ProfilePage() {
           </p>
         </CardContent>
       </Card>
+
+      <NotificationSettings />
     </main>
   );
 }

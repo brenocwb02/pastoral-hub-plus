@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Navigation } from "@/components/Navigation";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { OnboardingTrigger } from "@/components/OnboardingTrigger";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import CalendarPage from "./pages/Calendar";
@@ -34,6 +36,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
         <Navigation />
+        <PWAInstallPrompt />
+        <OnboardingTrigger />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<AuthPage />} />
