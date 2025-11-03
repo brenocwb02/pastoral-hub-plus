@@ -77,6 +77,45 @@ export type Database = {
         }
         Relationships: []
       }
+      data_requests: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          processed_by: string | null
+          request_type: Database["public"]["Enums"]["data_request_type"]
+          requested_at: string
+          status: Database["public"]["Enums"]["data_request_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type: Database["public"]["Enums"]["data_request_type"]
+          requested_at?: string
+          status?: Database["public"]["Enums"]["data_request_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type?: Database["public"]["Enums"]["data_request_type"]
+          requested_at?: string
+          status?: Database["public"]["Enums"]["data_request_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       encontros_1a1: {
         Row: {
           created_at: string
@@ -212,6 +251,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read_at: string | null
+          recipient_id: string
+          sender_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read_at?: string | null
+          recipient_id: string
+          sender_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read_at?: string | null
+          recipient_id?: string
+          sender_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -384,6 +453,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_consents: {
+        Row: {
+          consent_type: Database["public"]["Enums"]["consent_type"]
+          created_at: string
+          granted: boolean
+          granted_at: string | null
+          id: string
+          revoked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consent_type: Database["public"]["Enums"]["consent_type"]
+          created_at?: string
+          granted?: boolean
+          granted_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          consent_type?: Database["public"]["Enums"]["consent_type"]
+          created_at?: string
+          granted?: boolean
+          granted_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -430,6 +532,9 @@ export type Database = {
     }
     Enums: {
       app_role: "pastor" | "discipulador" | "membro" | "lider_casa"
+      consent_type: "data_processing" | "marketing" | "data_sharing"
+      data_request_status: "pending" | "processing" | "completed" | "rejected"
+      data_request_type: "export" | "delete"
       notification_channel: "none" | "telegram" | "whatsapp"
       notification_status: "pending" | "sent" | "failed"
       progress_status: "not_started" | "in_progress" | "completed"
@@ -561,6 +666,9 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["pastor", "discipulador", "membro", "lider_casa"],
+      consent_type: ["data_processing", "marketing", "data_sharing"],
+      data_request_status: ["pending", "processing", "completed", "rejected"],
+      data_request_type: ["export", "delete"],
       notification_channel: ["none", "telegram", "whatsapp"],
       notification_status: ["pending", "sent", "failed"],
       progress_status: ["not_started", "in_progress", "completed"],
