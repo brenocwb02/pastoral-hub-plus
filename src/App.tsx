@@ -25,6 +25,11 @@ import ReportsPage from "./pages/Reports";
 import AuditLogsPage from "./pages/AuditLogs";
 import NotificationsPage from "./pages/Notifications";
 import ProfilePage from "./pages/Profile";
+import ResourcesPage from "./pages/Resources";
+import AnalyticsPage from "./pages/Analytics";
+import AchievementsPage from "./pages/Achievements";
+import MessagesPage from "./pages/Messages";
+import DataPrivacyPage from "./pages/DataPrivacy";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +60,11 @@ const App = () => (
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/admin/roles" element={<ProtectedRoute><AdminRolesPage /></ProtectedRoute>} />
           <Route path="/admin/audit" element={<ProtectedRoute><AuditLogsPage /></ProtectedRoute>} />
+          <Route path="/resources" element={<ProtectedRoute><ResourcesPage /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+          <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
+          <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+          <Route path="/privacy" element={<ProtectedRoute><DataPrivacyPage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

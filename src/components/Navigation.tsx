@@ -15,7 +15,12 @@ import {
   User as UserIcon,
   History,
   Bell,
-  FileText
+  FileText,
+  Library,
+  BarChart3,
+  Trophy,
+  MessageSquare,
+  Lock
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -45,6 +50,10 @@ const navigationItems = [
   { href: "/calendar", label: "Calendário", icon: Calendar },
   { href: "/notifications", label: "Notificações", icon: Bell },
   { href: "/reports", label: "Relatórios", icon: FileText },
+  { href: "/resources", label: "Recursos", icon: Library },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/achievements", label: "Conquistas", icon: Trophy },
+  { href: "/messages", label: "Mensagens", icon: MessageSquare },
   { href: "/admin/roles", label: "Papéis", icon: UserIcon },
   { href: "/admin/audit", label: "Auditoria", icon: History },
 ];
@@ -166,6 +175,12 @@ export function Navigation() {
                   <Link to="/profile" className="flex w-full">
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Meu Perfil</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/privacy" className="flex w-full">
+                    <Lock className="mr-2 h-4 w-4" />
+                    <span>Privacidade (LGPD)</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">

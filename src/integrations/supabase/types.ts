@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          event_data: Json | null
+          event_type: string
+          id: string
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -76,6 +100,68 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      conquistas: {
+        Row: {
+          created_at: string
+          criteria: Json | null
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          points: number
+        }
+        Insert: {
+          created_at?: string
+          criteria?: Json | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          points?: number
+        }
+        Update: {
+          created_at?: string
+          criteria?: Json | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          points?: number
+        }
+        Relationships: []
+      }
+      conquistas_usuario: {
+        Row: {
+          conquista_id: string
+          earned_at: string
+          id: string
+          progress: number | null
+          user_id: string
+        }
+        Insert: {
+          conquista_id: string
+          earned_at?: string
+          id?: string
+          progress?: number | null
+          user_id: string
+        }
+        Update: {
+          conquista_id?: string
+          earned_at?: string
+          id?: string
+          progress?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conquistas_usuario_conquista_id_fkey"
+            columns: ["conquista_id"]
+            isOneToOne: false
+            referencedRelation: "conquistas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_requests: {
         Row: {
@@ -348,6 +434,27 @@ export type Database = {
         }
         Relationships: []
       }
+      pontos_usuario: {
+        Row: {
+          level: number
+          total_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          level?: number
+          total_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          level?: number
+          total_points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -416,6 +523,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recursos: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          tags?: string[] | null
+          title: string
+          type: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
       reunioes_gerais: {
         Row: {
