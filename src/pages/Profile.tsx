@@ -211,6 +211,46 @@ export default function ProfilePage() {
       </Card>
 
       <NotificationSettings />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Segurança
+          </CardTitle>
+          <CardDescription>Altere sua senha de acesso</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            variant="outline" 
+            onClick={async () => {
+              try {
+                const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+                  redirectTo: `${window.location.origin}/auth`,
+                });
+                
+                if (error) throw error;
+                
+                toast({ 
+                  title: "Email enviado!", 
+                  description: "Verifique sua caixa de entrada para redefinir sua senha." 
+                });
+              } catch (error: any) {
+                toast({ 
+                  title: "Erro ao enviar email", 
+                  description: error.message, 
+                  variant: "destructive" 
+                });
+              }
+            }}
+          >
+            Solicitar Redefinição de Senha
+          </Button>
+          <p className="text-xs text-muted-foreground mt-3">
+            Um email será enviado para {userEmail} com instruções para redefinir sua senha.
+          </p>
+        </CardContent>
+      </Card>
     </main>
   );
 }
