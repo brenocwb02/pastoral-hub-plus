@@ -30,6 +30,7 @@ import AnalyticsPage from "./pages/Analytics";
 import AchievementsPage from "./pages/Achievements";
 import MessagesPage from "./pages/Messages";
 import DataPrivacyPage from "./pages/DataPrivacy";
+import LeaderDashboardPage from "./pages/LeaderDashboard";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ const App = () => (
           <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
           <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
           <Route path="/privacy" element={<ProtectedRoute><DataPrivacyPage /></ProtectedRoute>} />
+          <Route path="/leader-dashboard" element={<ProtectedRoute><LeaderDashboardPage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

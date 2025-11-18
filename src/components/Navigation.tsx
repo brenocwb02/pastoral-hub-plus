@@ -20,7 +20,8 @@ import {
   BarChart3,
   Trophy,
   MessageSquare,
-  Lock
+  Lock,
+  HomeIcon
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 const navigationItems = [
   { href: "/", label: "Início", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/leader-dashboard", label: "Dashboard Líder", icon: HomeIcon, requiresRole: "lider_casa" },
   { href: "/members", label: "Membros", icon: Users },
   { href: "/houses", label: "Igrejas no Lar", icon: Building2 },
   { href: "/one-on-ones", label: "1 a 1", icon: MessageCircle },
@@ -125,6 +127,11 @@ export function Navigation() {
             
             // Hide reports if not pastor or lider_casa
             if (item.href === '/reports' && !roles.includes('pastor') && !roles.includes('lider_casa')) {
+              return null;
+            }
+
+            // Hide leader dashboard if not lider_casa
+            if (item.href === '/leader-dashboard' && !roles.includes('lider_casa')) {
               return null;
             }
             
@@ -222,6 +229,11 @@ export function Navigation() {
               
               // Hide reports if not pastor or lider_casa
               if (item.href === '/reports' && !roles.includes('pastor') && !roles.includes('lider_casa')) {
+                return null;
+              }
+
+              // Hide leader dashboard if not lider_casa
+              if (item.href === '/leader-dashboard' && !roles.includes('lider_casa')) {
                 return null;
               }
               

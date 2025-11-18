@@ -4,9 +4,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { setSEO } from "@/lib/seo";
-import { Trophy, Award, Target, TrendingUp } from "lucide-react";
+import { Trophy, Award, Target, TrendingUp, RefreshCw } from "lucide-react";
+import { useAchievements } from "@/hooks/useAchievements";
 
 interface Achievement {
   id: string;
@@ -33,6 +35,10 @@ export default function Achievements() {
   const [userAchievements, setUserAchievements] = useState<UserAchievement[]>([]);
   const [userPoints, setUserPoints] = useState<UserPoints | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+
+  // Auto-check achievements
+  useAchievements();
 
   useEffect(() => {
     setSEO(
@@ -95,6 +101,39 @@ export default function Achievements() {
     return currentLevel * 100;
   };
 
+  const handleCheckAchievements = async () => {
+    setChecking(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const response = await fetch(
+        `https://yzeekoxgykzjzjprrmnl.supabase.co/functions/v1/check-achievements`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({ userId: user.id }),
+        }
+      );
+
+      const data = await response.json();
+      
+      if (data.newAchievements && data.newAchievements.length > 0) {
+        toast.success(data.message);
+        loadData(); // Reload data to show new achievements
+      } else {
+        toast.info("Você está em dia com suas conquistas!");
+      }
+    } catch (error) {
+      toast.error("Erro ao verificar conquistas");
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const progressToNextLevel = () => {
     if (!userPoints) return 0;
     const pointsNeeded = pointsToNextLevel(userPoints.level);
@@ -121,11 +160,17 @@ export default function Achievements() {
 
   return (
     <div className="container py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Conquistas e Progresso</h1>
-        <p className="text-muted-foreground">
-          Acompanhe suas conquistas e evolução no sistema
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Conquistas e Progresso</h1>
+          <p className="text-muted-foreground">
+            Acompanhe suas conquistas e evolução no sistema
+          </p>
+        </div>
+        <Button onClick={handleCheckAchievements} disabled={checking}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${checking ? "animate-spin" : ""}`} />
+          Verificar Conquistas
+        </Button>
       </div>
 
       <Card className="p-6 bg-gradient-to-r from-primary/10 to-secondary/10">
