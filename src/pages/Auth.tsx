@@ -11,7 +11,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signUpSchema, signInSchema, type SignUpFormData, type SignInFormData } from "@/lib/validations";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, KeyRound } from "lucide-react";
+import { z } from "zod";
+
+// Schema para nova senha
+const newPasswordSchema = z.object({
+  password: z.string()
+    .min(8, "Senha deve ter pelo menos 8 caracteres")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Senha deve conter: minúscula, maiúscula e número"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Senhas não coincidem",
+  path: ["confirmPassword"],
+});
+
+type NewPasswordFormData = z.infer<typeof newPasswordSchema>;
 
 // Traduz mensagens de erro do Supabase para português
 function translateAuthError(error: string): string {
@@ -25,6 +39,7 @@ function translateAuthError(error: string): string {
     "Email rate limit exceeded": "Muitas tentativas. Aguarde alguns minutos.",
     "Invalid email": "E-mail inválido",
     "Signup requires a valid password": "Senha inválida",
+    "New password should be different from the old password": "A nova senha deve ser diferente da anterior",
   };
   
   for (const [key, value] of Object.entries(translations)) {
@@ -39,7 +54,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [view, setView] = useState<"auth" | "forgot">("auth");
+  const [view, setView] = useState<"auth" | "forgot" | "reset">("auth");
   const [resetEmail, setResetEmail] = useState("");
 
   const signUpForm = useForm<SignUpFormData>({
@@ -52,21 +67,50 @@ export default function AuthPage() {
     defaultValues: { email: "", password: "" },
   });
 
+  const newPasswordForm = useForm<NewPasswordFormData>({
+    resolver: zodResolver(newPasswordSchema),
+    defaultValues: { password: "", confirmPassword: "" },
+  });
+
   useEffect(() => {
     setSEO("Entrar | Cuidar+", "Autenticação para acessar o Cuidar+");
     
-    // Check existing session
+    // Check for password recovery event in URL hash
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get("access_token");
+    const type = hashParams.get("type");
+    
+    if (type === "recovery" && accessToken) {
+      // User clicked on password reset link - show reset form
+      setView("reset");
+      // Clear the hash from URL for cleaner appearance
+      window.history.replaceState(null, "", window.location.pathname);
+      return;
+    }
+
+    // Check existing session (only if not in reset mode)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) navigate("/dashboard");
+      if (session?.user && view !== "reset") {
+        navigate("/dashboard");
+      }
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) navigate("/dashboard");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // If password recovery event, show reset form
+      if (event === "PASSWORD_RECOVERY") {
+        setView("reset");
+        return;
+      }
+      
+      // Only redirect if not in reset mode
+      if (session?.user && view !== "reset") {
+        navigate("/dashboard");
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, view]);
 
   async function handleSignUp(data: SignUpFormData) {
     setLoading(true);
@@ -156,6 +200,33 @@ export default function AuthPage() {
     setResetEmail("");
   }
 
+  async function handleNewPassword(data: NewPasswordFormData) {
+    setLoading(true);
+
+    const { error } = await supabase.auth.updateUser({
+      password: data.password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      toast({
+        title: "Erro ao atualizar senha",
+        description: translateAuthError(error.message),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Senha atualizada!",
+      description: "Sua nova senha foi salva com sucesso.",
+    });
+    
+    // Redirect to dashboard after password update
+    navigate("/dashboard");
+  }
+
   // Componente de input de senha com toggle de visibilidade
   const PasswordInput = ({ 
     field, 
@@ -193,7 +264,85 @@ export default function AuthPage() {
     </div>
   );
 
-  // Tela de recuperação de senha
+  // Tela de criar nova senha (após clicar no link do email)
+  if (view === "reset") {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary/20">
+        <Card className="w-full max-w-md shadow-elegant">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <KeyRound className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle>Criar Nova Senha</CardTitle>
+            <CardDescription>
+              Digite sua nova senha abaixo
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...newPasswordForm}>
+              <form onSubmit={newPasswordForm.handleSubmit(handleNewPassword)} className="space-y-4">
+                <FormField
+                  control={newPasswordForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nova Senha</FormLabel>
+                      <FormControl>
+                        <PasswordInput 
+                          field={field} 
+                          show={showPassword} 
+                          onToggle={() => setShowPassword(!showPassword)} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        Mínimo 8 caracteres, com maiúscula, minúscula e número
+                      </p>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={newPasswordForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirmar Nova Senha</FormLabel>
+                      <FormControl>
+                        <PasswordInput 
+                          field={field} 
+                          show={showConfirmPassword} 
+                          onToggle={() => setShowConfirmPassword(!showConfirmPassword)} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    "Salvar Nova Senha"
+                  )}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  // Tela de recuperação de senha (solicitar email)
   if (view === "forgot") {
     return (
       <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary/20">
