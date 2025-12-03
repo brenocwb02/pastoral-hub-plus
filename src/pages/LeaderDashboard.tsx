@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { setSEO } from "@/lib/seo";
-import { Users, TrendingUp, BookOpen, Calendar, Award, Home } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Calendar, Home } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Casa {
@@ -41,6 +43,7 @@ export default function LeaderDashboard() {
   const [studyProgress, setStudyProgress] = useState<StudyProgress[]>([]);
   const [meetingStats, setMeetingStats] = useState<MeetingStats>({ total: 0, thisMonth: 0, lastMonth: 0 });
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setSEO("Dashboard do Líder | Cuidar+", "Acompanhe as métricas da sua casa");
@@ -176,13 +179,48 @@ export default function LeaderDashboard() {
 
   return (
     <div className="container py-8 space-y-6">
-      <div>
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold">Dashboard - {casa.nome}</h1>
         <p className="text-muted-foreground">{casa.endereco}</p>
       </div>
 
+      <Card className="animate-fade-in">
+        <CardHeader>
+          <CardTitle>Ações rápidas</CardTitle>
+          <CardDescription>Atalhos para o dia a dia da sua Igreja no Lar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
+            <Button
+              variant="secondary"
+              className="hover-scale justify-start md:justify-center flex-1"
+              onClick={() => navigate("/members")}
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Gerenciar membros
+            </Button>
+            <Button
+              variant="outline"
+              className="hover-scale justify-start md:justify-center flex-1"
+              onClick={() => navigate("/one-on-ones")}
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Novo encontro 1 a 1
+            </Button>
+            <Button
+              variant="outline"
+              className="hover-scale justify-start md:justify-center flex-1"
+              onClick={() => navigate("/meetings")}
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Nova reunião geral
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="hover-scale animate-fade-in">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -193,7 +231,7 @@ export default function LeaderDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover-scale animate-fade-in">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Reuniões este Mês</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -206,7 +244,7 @@ export default function LeaderDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover-scale animate-fade-in">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Taxa de Conclusão</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
@@ -219,7 +257,7 @@ export default function LeaderDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover-scale animate-fade-in">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total de Reuniões</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
