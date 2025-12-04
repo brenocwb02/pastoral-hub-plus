@@ -6,6 +6,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
 import { houseSchema, type HouseFormData } from "@/lib/validations";
@@ -33,6 +34,11 @@ export default function HousesPage() {
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Casa | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const leaderHouse = useMemo(
+    () => items.find((item) => item.leader_id === currentUserId) || null,
+    [items, currentUserId]
+  );
   
   const form = useForm<HouseFormData>({
     resolver: zodResolver(houseSchema),
@@ -42,7 +48,17 @@ export default function HousesPage() {
     },
   });
 
-  useEffect(() => { setSEO("Igrejas no Lar | Cuidar+", "Gerencie igrejas no lar e líderes"); }, []);
+  useEffect(() => {
+    setSEO("Igrejas no Lar | Cuidar+", "Gerencie igrejas no lar e líderes");
+  }, []);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setCurrentUserId(data.user?.id ?? null);
+    };
+    fetchUser();
+  }, []);
 
   const load = useMemo(() => async () => {
     setLoading(true);
@@ -168,6 +184,25 @@ export default function HousesPage() {
         </Dialog>
       </header>
 
+      {leaderHouse && (
+        <Card className="border-primary/30 bg-muted/40">
+          <CardHeader>
+            <CardTitle>Sua Igreja no Lar</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{leaderHouse.nome}</span>
+                <Badge variant="outline">Você é o líder</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {leaderHouse.endereco || "Sem endereço cadastrado"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader><CardTitle>Igrejas no Lar ({items.length})</CardTitle></CardHeader>
         <CardContent>
@@ -180,7 +215,14 @@ export default function HousesPage() {
               {items.map(item => (
                 <div key={item.id} className="rounded-md border p-3 flex justify-between items-center">
                   <div>
-                    <div className="font-medium">{item.nome}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{item.nome}</span>
+                      {item.leader_id === currentUserId && (
+                        <Badge variant="secondary" className="text-xs">
+                          Sua igreja
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-sm text-muted-foreground">{item.endereco || "Sem endereço"}</div>
                   </div>
                   <div className="flex items-center gap-2">
