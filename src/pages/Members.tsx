@@ -7,6 +7,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { setSEO } from "@/lib/seo";
 import { memberSchema, type MemberFormData } from "@/lib/validations";
@@ -352,49 +353,117 @@ export default function MembersPage() {
           {loading ? (
             <div className="flex justify-center items-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
           ) : filteredMembers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {searchQuery || filterCasa || filterDiscipulador ? "Nenhum membro encontrado com os filtros aplicados" : "Nenhum membro cadastrado"}
+            <div className="text-center py-8 text-muted-foreground space-y-3">
+              <p>
+                {searchQuery || filterCasa || filterDiscipulador
+                  ? "Nenhum membro encontrado com os filtros aplicados"
+                  : "Nenhum membro cadastrado"}
+              </p>
+              {canCreate && !searchQuery && !filterCasa && !filterDiscipulador && (
+                <Button variant="outline" onClick={() => handleDialogOpen(null)}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Adicionar primeiro membro
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredMembers.map(m => (
-                <div key={m.id} className="rounded-md border p-3 flex justify-between items-center hover:bg-muted/50 transition-colors">
-                  <div className="flex-1">
-                    <div className="font-medium">{m.full_name}</div>
-                    <div className="text-sm text-muted-foreground">{m.email} {m.phone && `• ${m.phone}`}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{m.casas?.nome || "Sem igreja no lar"}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link to={`/members/${m.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(m)} disabled={!canCreate}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled={!canCreate}>
-                          <Trash2 className="h-4 w-4" />
+              {filteredMembers.map((m) => {
+                const isNew =
+                  Date.now() - new Date(m.created_at).getTime() <
+                  1000 * 60 * 60 * 24 * 30;
+                const isInDiscipulado = !!m.discipulador_id;
+
+                return (
+                  <div
+                    key={m.id}
+                    className="rounded-md border p-3 flex justify-between items-center hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{m.full_name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {m.email} {m.phone && `• ${m.phone}`}
+                      </div>
+                      {(isInDiscipulado || isNew) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {isInDiscipulado && (
+                            <Badge variant="secondary" className="text-xs">
+                              Em discipulado
+                            </Badge>
+                          )}
+                          {isNew && (
+                            <Badge variant="outline" className="text-xs">
+                              Novo
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {m.casas?.nome
+                          ? `Igreja no Lar: ${m.casas.nome}`
+                          : "Sem igreja no lar"}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 ml-4">
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link to={`/members/${m.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Isso excluirá permanentemente o membro "{m.full_name}".
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(m.id)}>Excluir</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDialogOpen(m)}
+                          disabled={!canCreate}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              disabled={!canCreate}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. Isso excluirá permanentemente o membro "{m.full_name}".
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(m.id)}>
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                      {canCreate && (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button variant="secondary" size="sm" asChild>
+                            <Link to={`/one-on-ones?membroId=${m.id}`}>
+                              Novo 1 a 1
+                            </Link>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/progress?membroId=${m.id}`}>
+                              Ver progresso
+                            </Link>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
