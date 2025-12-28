@@ -13,7 +13,9 @@ import { houseSchema, type HouseFormData } from "@/lib/validations";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Pencil, Trash2 } from "lucide-react";
+import { Loader2, PlusCircle, Pencil, Trash2, Home, Users } from "lucide-react";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from "recharts";
 
 interface Casa { 
   id: string; 
@@ -25,12 +27,18 @@ interface Casa {
   updated_at: string;
 }
 
+interface Membro {
+  id: string;
+  casa_id: string | null;
+}
+
 export default function HousesPage() {
   const { toast } = useToast();
   const { roles } = useUserRoles();
   const canCreate = roles.includes('pastor') || roles.includes('discipulador');
   const isPastor = roles.includes('pastor');
   const [items, setItems] = useState<Casa[]>([]);
+  const [members, setMembers] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Casa | null>(null);
@@ -39,6 +47,29 @@ export default function HousesPage() {
     () => items.find((item) => item.leader_id === currentUserId) || null,
     [items, currentUserId]
   );
+
+  const memberCountByHouse = useMemo(() => {
+    const counts: Record<string, number> = {};
+    members.forEach((m) => {
+      if (m.casa_id) {
+        counts[m.casa_id] = (counts[m.casa_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [members]);
+
+  const chartData = useMemo(() => {
+    return items.slice(0, 6).map((casa) => ({
+      name: casa.nome.length > 12 ? casa.nome.substring(0, 12) + "…" : casa.nome,
+      membros: memberCountByHouse[casa.id] || 0,
+      isLeader: casa.leader_id === currentUserId,
+    }));
+  }, [items, memberCountByHouse, currentUserId]);
+
+  const totalMembers = members.filter((m) => m.casa_id).length;
+  const chartConfig = {
+    membros: { label: "Membros", color: "hsl(var(--primary))" },
+  };
   
   const form = useForm<HouseFormData>({
     resolver: zodResolver(houseSchema),
@@ -62,10 +93,14 @@ export default function HousesPage() {
 
   const load = useMemo(() => async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("casas").select("*").order("created_at", { ascending: false });
+    const [casasRes, membrosRes] = await Promise.all([
+      supabase.from("casas").select("*").order("created_at", { ascending: false }),
+      supabase.from("membros").select("id, casa_id"),
+    ]);
     setLoading(false);
-    if (error) return toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
-    setItems(data || []);
+    if (casasRes.error) return toast({ title: "Erro ao carregar", description: casasRes.error.message, variant: "destructive" });
+    setItems(casasRes.data || []);
+    setMembers(membrosRes.data || []);
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
@@ -184,6 +219,64 @@ export default function HousesPage() {
         </Dialog>
       </header>
 
+      {/* Resumo com gráfico */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="md:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <Home className="h-4 w-4 text-primary" />
+              Resumo
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total de casas</span>
+              <span className="text-lg font-semibold">{items.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Membros alocados</span>
+              <span className="text-lg font-semibold">{totalMembers}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Média por casa</span>
+              <span className="text-lg font-semibold">
+                {items.length > 0 ? (totalMembers / items.length).toFixed(1) : 0}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Membros por Casa
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {chartData.length > 0 ? (
+              <ChartContainer config={chartConfig} className="h-[140px] w-full">
+                <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="membros" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.isLeader ? "hsl(var(--primary))" : "hsl(var(--muted-foreground) / 0.4)"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-6">Sem dados para exibir</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {leaderHouse && (
         <Card className="border-primary/30 bg-muted/40">
           <CardHeader>
@@ -194,6 +287,7 @@ export default function HousesPage() {
               <div className="flex items-center gap-2">
                 <span className="font-medium">{leaderHouse.nome}</span>
                 <Badge variant="outline">Você é o líder</Badge>
+                <Badge variant="secondary">{memberCountByHouse[leaderHouse.id] || 0} membros</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
                 {leaderHouse.endereco || "Sem endereço cadastrado"}
@@ -222,6 +316,9 @@ export default function HousesPage() {
                           Sua igreja
                         </Badge>
                       )}
+                      <Badge variant="outline" className="text-xs">
+                        {memberCountByHouse[item.id] || 0} membros
+                      </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">{item.endereco || "Sem endereço"}</div>
                   </div>
