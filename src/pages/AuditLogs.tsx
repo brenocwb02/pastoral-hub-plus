@@ -24,8 +24,8 @@ export default function AuditLogsPage() {
   const { toast } = useToast();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterTable, setFilterTable] = useState<string>("");
-  const [filterAction, setFilterAction] = useState<string>("");
+  const [filterTable, setFilterTable] = useState<string>("all");
+  const [filterAction, setFilterAction] = useState<string>("all");
 
   useEffect(() => {
     setSEO("Logs de Auditoria | Cuidar+", "Histórico de alterações do sistema");
@@ -96,8 +96,8 @@ export default function AuditLogsPage() {
   };
 
   const filteredLogs = logs.filter(log => {
-    const matchesTable = filterTable === "" || log.table_name === filterTable;
-    const matchesAction = filterAction === "" || log.action === filterAction;
+    const matchesTable = filterTable === "all" || log.table_name === filterTable;
+    const matchesAction = filterAction === "all" || log.action === filterAction;
     return matchesTable && matchesAction;
   });
 
@@ -129,7 +129,7 @@ export default function AuditLogsPage() {
                   <SelectValue placeholder="Todas as tabelas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas as tabelas</SelectItem>
+                  <SelectItem value="all">Todas as tabelas</SelectItem>
                   {uniqueTables.map(table => (
                     <SelectItem key={table} value={table}>
                       {getTableLabel(table)}
@@ -145,7 +145,7 @@ export default function AuditLogsPage() {
                   <SelectValue placeholder="Todas as ações" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas as ações</SelectItem>
+                  <SelectItem value="all">Todas as ações</SelectItem>
                   <SelectItem value="INSERT">Criação</SelectItem>
                   <SelectItem value="UPDATE">Atualização</SelectItem>
                   <SelectItem value="DELETE">Exclusão</SelectItem>
