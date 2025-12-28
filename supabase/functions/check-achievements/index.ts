@@ -15,6 +15,12 @@ interface Achievement {
   points: number
 }
 
+// Validate UUID format to prevent injection
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -32,6 +38,11 @@ Deno.serve(async (req) => {
       throw new Error('userId is required')
     }
 
+    // Validate userId is a proper UUID to prevent SQL injection
+    if (!isValidUUID(userId)) {
+      throw new Error('Invalid userId format')
+    }
+
     // Get all achievements
     const { data: achievements, error: achievementsError } = await supabaseClient
       .from('conquistas')
@@ -47,6 +58,14 @@ Deno.serve(async (req) => {
 
     if (userAchievementsError) throw userAchievementsError
 
+    // Get member IDs associated with this user (safe query)
+    const { data: userMembros } = await supabaseClient
+      .from('membros')
+      .select('id')
+      .eq('user_id', userId)
+
+    const membroIds = userMembros?.map(m => m.id) || []
+
     const earnedIds = new Set(userAchievements?.map(ua => ua.conquista_id) || [])
     const newAchievements: string[] = []
 
@@ -59,51 +78,80 @@ Deno.serve(async (req) => {
 
       switch (criteria.type) {
         case 'meetings_attended': {
-          // Count 1-on-1 meetings attended
-          const { count: meetingsCount } = await supabaseClient
+          // Count 1-on-1 meetings as discipulador
+          const { count: asDiscipulador } = await supabaseClient
             .from('encontros_1a1')
             .select('*', { count: 'exact', head: true })
-            .or(`discipulador_id.eq.${userId},discipulo_membro_id.in.(select id from membros where user_id = '${userId}')`)
+            .eq('discipulador_id', userId)
 
-          progress = Math.min(100, Math.round(((meetingsCount || 0) / criteria.threshold) * 100))
-          earned = (meetingsCount || 0) >= criteria.threshold
+          // Count 1-on-1 meetings as discipulo (using member IDs)
+          let asDiscipulo = 0
+          if (membroIds.length > 0) {
+            const { count } = await supabaseClient
+              .from('encontros_1a1')
+              .select('*', { count: 'exact', head: true })
+              .in('discipulo_membro_id', membroIds)
+            asDiscipulo = count || 0
+          }
+
+          const meetingsCount = (asDiscipulador || 0) + asDiscipulo
+          progress = Math.min(100, Math.round((meetingsCount / criteria.threshold) * 100))
+          earned = meetingsCount >= criteria.threshold
           break
         }
 
         case 'study_completed': {
-          // Count completed studies
-          const { count: studiesCount } = await supabaseClient
-            .from('progresso')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'completed')
-            .in('membro_id', supabaseClient
-              .from('membros')
-              .select('id')
-              .eq('user_id', userId)
-            )
+          // Count completed studies using member IDs
+          let studiesCount = 0
+          if (membroIds.length > 0) {
+            const { count } = await supabaseClient
+              .from('progresso')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'completed')
+              .in('membro_id', membroIds)
+            studiesCount = count || 0
+          }
 
-          progress = Math.min(100, Math.round(((studiesCount || 0) / criteria.threshold) * 100))
-          earned = (studiesCount || 0) >= criteria.threshold
+          progress = Math.min(100, Math.round((studiesCount / criteria.threshold) * 100))
+          earned = studiesCount >= criteria.threshold
           break
         }
 
         case 'consecutive_meetings': {
-          // Check for consecutive meeting attendance (simplified)
-          const { data: recentMeetings } = await supabaseClient
+          // Count meetings as discipulador
+          const { data: discipuladorMeetings } = await supabaseClient
             .from('encontros_1a1')
             .select('scheduled_at')
-            .or(`discipulador_id.eq.${userId},discipulo_membro_id.in.(select id from membros where user_id = '${userId}')`)
+            .eq('discipulador_id', userId)
             .order('scheduled_at', { ascending: false })
             .limit(criteria.threshold)
 
-          const consecutiveCount = recentMeetings?.length || 0
+          // Count meetings as discipulo
+          let discipuloMeetings: { scheduled_at: string }[] = []
+          if (membroIds.length > 0) {
+            const { data } = await supabaseClient
+              .from('encontros_1a1')
+              .select('scheduled_at')
+              .in('discipulo_membro_id', membroIds)
+              .order('scheduled_at', { ascending: false })
+              .limit(criteria.threshold)
+            discipuloMeetings = data || []
+          }
+
+          // Combine and sort all meetings
+          const allMeetings = [
+            ...(discipuladorMeetings || []),
+            ...discipuloMeetings
+          ].sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+
+          const consecutiveCount = Math.min(allMeetings.length, criteria.threshold)
           progress = Math.min(100, Math.round((consecutiveCount / criteria.threshold) * 100))
           earned = consecutiveCount >= criteria.threshold
           break
         }
 
         case 'points_earned': {
-          // Check total points
+          // Check total points (already safe - uses .eq())
           const { data: userPoints } = await supabaseClient
             .from('pontos_usuario')
             .select('total_points')
